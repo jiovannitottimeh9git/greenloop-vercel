@@ -15,6 +15,7 @@
     { "source": "/admin-fleet.php", "destination": "/api/index.js" },
     { "source": "/admin-drivers.php", "destination": "/api/index.js" },
     { "source": "/admin-vehicles.php", "destination": "/api/index.js" },
+    { "source": "/admin-reports.php", "destination": "/api/index.js" },
     { "source": "/driver.php", "destination": "/api/index.js" },
     { "source": "/admin-login.php", "destination": "/api/index.js" },
     { "source": "/driver-login.php", "destination": "/api/index.js" },

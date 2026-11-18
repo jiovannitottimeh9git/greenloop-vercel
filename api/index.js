@@ -77,9 +77,18 @@ const ADMIN_PAGES = {
     heading: 'Vehicle management',
     description: 'Register trucks and manage your collection fleet.',
     content: 'admin/vehicles.html'
+  },
+  reports: {
+    file: 'admin-reports.php',
+    title: 'Community reports',
+    eyebrow: 'GREENLOOP / COMMUNITY REPORTS',
+    heading: 'Community reports',
+    description: 'Environmental issues submitted by the public.',
+    content: 'admin/reports.html'
   }
 };
 const ADMIN_PAGE_FILES = new Set([...Object.values(ADMIN_PAGES).map((p) => p.file), 'admin-create-account.php']);
+const REPORT_STATUSES = ['Submitted', 'Under Review', 'Assigned', 'Resolved', 'Rejected'];
 
 function csrfToken(req, res) {
   let token = (req.headers.cookie || '')
@@ -208,6 +217,7 @@ app.get('/admin-completed.php', (req, res) => renderAdminPage(req, res, 'complet
 app.get('/admin-fleet.php', (req, res) => renderAdminPage(req, res, 'fleet'));
 app.get('/admin-drivers.php', (req, res) => renderAdminPage(req, res, 'drivers'));
 app.get('/admin-vehicles.php', (req, res) => renderAdminPage(req, res, 'vehicles'));
+app.get('/admin-reports.php', (req, res) => renderAdminPage(req, res, 'reports'));
 
 app.get('/driver.php', (req, res) => {
   const user = auth.readSession(req);
@@ -436,13 +446,14 @@ app.all('/api.php', parseMultipart, async (req, res) => {
     }
 
     if (action === 'report' && method === 'POST') {
-      const name = str(req.body.name, 120);
-      const phone = str(req.body.phone, 30);
-      const location = str(req.body.location, 255);
-      const category = str(req.body.category, 60);
-      const description = str(req.body.description, 1500);
-      if (!name || !phone || !location || !category || !description) {
-        return send(res, { success: false, message: 'Complete all required fields.' }, 422);
+      const name = validate.cleanText(req.body.name, 120);
+      const phone = validate.normalisePhone(req.body.phone);
+      const location = validate.cleanText(req.body.location, 255);
+      const category = validate.cleanText(req.body.category, 60);
+      const description = validate.cleanText(req.body.description, 1500);
+      const allowedCategories = ['Illegal dumping', 'Overflowing waste bins', 'Blocked drainage', 'Open burning', 'Environmental pollution', 'Other'];
+      if (name.length < 2 || !phone || !location || !allowedCategories.includes(category) || description.length < 5) {
+        return send(res, { success: false, message: 'Complete all required fields with a valid phone number and category.' }, 422);
       }
       let evidenceData = null;
       let evidenceMime = null;
@@ -919,6 +930,51 @@ app.all('/api.php', parseMultipart, async (req, res) => {
          LIMIT 250`
       );
       return send(res, { success: true, records });
+    }
+
+    if (action === 'admin_reports' && method === 'GET') {
+      if (!auth.requireRole(req, res, 'admin')) return;
+      const status = str(req.query.status, 20);
+      const filtered = REPORT_STATUSES.includes(status);
+      const reports = await db.many(
+        `SELECT id, reference_code, reporter_name, phone, location, category, description,
+                status, created_at, (evidence_data IS NOT NULL) AS has_evidence
+         FROM environmental_reports
+         ${filtered ? 'WHERE status=$1' : ''}
+         ORDER BY created_at DESC
+         LIMIT 300`,
+        filtered ? [status] : []
+      );
+      return send(res, { success: true, reports });
+    }
+
+    if (action === 'admin_report_status' && method === 'POST') {
+      if (!auth.requireRole(req, res, 'admin')) return;
+      const id = Number(req.body.report_id) || 0;
+      const status = str(req.body.status, 20);
+      if (!REPORT_STATUSES.includes(status)) {
+        return send(res, { success: false, message: 'Choose a valid report status.' }, 422);
+      }
+      const row = await db.one(
+        'UPDATE environmental_reports SET status=$1 WHERE id=$2 RETURNING id, status',
+        [status, id]
+      );
+      if (!row) return send(res, { success: false, message: 'Report not found.' }, 404);
+      return send(res, { success: true, message: 'Report status updated.', status: row.status });
+    }
+
+    if (action === 'admin_report_evidence' && method === 'GET') {
+      if (!auth.requireRole(req, res, 'admin')) return;
+      const id = Number(req.query.id) || 0;
+      const row = await db.one(
+        'SELECT evidence_data, evidence_mime FROM environmental_reports WHERE id=$1',
+        [id]
+      );
+      if (!row || !row.evidence_data) return res.status(404).send('No evidence was uploaded for this report.');
+      const base64 = String(row.evidence_data).split(',')[1] || '';
+      res.setHeader('Content-Type', row.evidence_mime || 'application/octet-stream');
+      res.setHeader('Cache-Control', 'private, max-age=300');
+      return res.send(Buffer.from(base64, 'base64'));
     }
 
     if (action === 'admin_options' && method === 'GET') {

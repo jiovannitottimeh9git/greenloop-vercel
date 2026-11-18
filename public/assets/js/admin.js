@@ -19,6 +19,10 @@ document.querySelectorAll('.sidebar .side-link').forEach(link=>{
 document.addEventListener('keydown',e=>{if(e.key==='Escape')setAdminSidebar(false);});
 adminSidebar?.addEventListener('transitionend',()=>adminMap?.invalidateSize());
 window.addEventListener('resize',()=>adminMap?.invalidateSize());
+document.querySelectorAll('[data-logout]').forEach(button=>button.addEventListener('click',async()=>{
+  await fetch('api.php?action=logout',{method:'POST',headers:headers});
+  location.href='index.php';
+}));
 async function loadAdmin(){
  const msg=document.getElementById('adminMessage');
  try{
@@ -72,6 +76,35 @@ async function loadCompleted(){
   }).join(''):'<tr><td colspan="7">No completed or cancelled collections yet.</td></tr>';
  }catch(e){body.innerHTML=`<tr><td colspan="7">${esc(e.message)}</td></tr>`;}
 }
+async function loadReports(){
+ const body=document.getElementById('reportRows');if(!body)return;
+ const filter=document.getElementById('reportFilter');
+ const status=filter?filter.value:'';
+ try{
+  const r=await fetch('api.php?action=admin_reports'+(status?'&status='+encodeURIComponent(status):''),{cache:'no-store'});
+  const d=await r.json();if(!d.success)throw Error(d.message);
+  body.innerHTML=d.reports.length?d.reports.map(x=>{
+   const when=x.created_at?new Date(String(x.created_at).replace(' ','T')).toLocaleString():'—';
+   const detail=String(x.description||'');
+   const short=detail.length>120?detail.slice(0,120)+'…':detail;
+   const evidence=x.has_evidence?`<a class="evidence-link" href="api.php?action=admin_report_evidence&id=${Number(x.id)}" target="_blank" rel="noopener"><i class="fa-solid fa-image"></i> View</a>`:'<span class="muted-cell">—</span>';
+   return `<tr><td><strong>${esc(x.reference_code)}</strong></td><td>${esc(x.reporter_name)}<small>${esc(x.phone)}</small></td><td>${esc(x.location)}</td><td><span class="status-pill">${esc(x.category)}</span></td><td class="report-detail" title="${esc(detail)}">${esc(short)}</td><td>${evidence}</td><td>${when}</td><td><select class="report-status-select" data-report-id="${Number(x.id)}" onchange="updateReportStatus(${Number(x.id)},this.value)">${['Submitted','Under Review','Assigned','Resolved','Rejected'].map(s=>`<option${s===x.status?' selected':''}>${s}</option>`).join('')}</select></td></tr>`;
+  }).join(''):'<tr><td colspan="8">No user reports found for this status.</td></tr>';
+ }catch(e){body.innerHTML=`<tr><td colspan="8">${esc(e.message)}</td></tr>`;}
+}
+async function updateReportStatus(id,status){
+ const target=document.getElementById('reportListMessage');
+ try{
+  const form=new FormData();form.append('report_id',id);form.append('status',status);
+  const r=await fetch('api.php?action=admin_report_status',{method:'POST',headers:headers,body:form});
+  const d=await r.json();
+  if(target){target.textContent=d.message;target.className='form-message '+(d.success?'success':'error');}
+  if(d.success)loadReports();
+ }catch(e){if(target){target.textContent='Could not update report status. '+e.message;target.className='form-message error';}}
+}
+window.updateReportStatus=updateReportStatus;
+document.getElementById('reportFilter')?.addEventListener('change',loadReports);
+
 async function cancelRequest(id,reference){
  if(!confirm(`Cancel collection ${reference}? Any active driver assignment will be stopped.`))return;
  const form=new FormData();form.append('request_id',id);
@@ -87,8 +120,9 @@ window.cancelRequest=cancelRequest;
 async function loadOptions(){const r=await fetch('api.php?action=admin_options');const d=await r.json();if(!d.success)return;[['assignRequest',d.requests,x=>`${x.reference_code} — ${x.customer_name}`],['assignDriver',d.drivers,x=>x.full_name],['assignVehicle',d.vehicles,x=>x.registration_number]].forEach(([id,arr,label])=>{const el=document.getElementById(id);if(!el)return;el.innerHTML='<option value="">Choose…</option>'+arr.map(x=>`<option value="${x.id}">${esc(label(x))}</option>`).join('');});}
 bindRefresh('refreshAdmin',loadAdmin,'requestListMessage','Requests');
 bindRefresh('refreshCompleted',loadCompleted,'completedListMessage','History');
+bindRefresh('refreshReports',loadReports,'reportListMessage','Reports');
 document.getElementById('assignForm')?.addEventListener('submit',async e=>{e.preventDefault();const f=e.currentTarget;const r=await fetch('api.php?action=admin_assign',{method:'POST',headers:headers,body:new FormData(f)});const d=await r.json();const m=document.getElementById('assignMessage');m.textContent=d.message;m.className='form-message '+(d.success?'success':'error');if(d.success){f.reset();loadAdmin();loadOptions();}});
-loadAdmin();loadOptions();setInterval(loadAdmin,15000);
+loadAdmin();loadOptions();loadReports();setInterval(loadAdmin,15000);
 
 
 // Driver account management (administrator only)
