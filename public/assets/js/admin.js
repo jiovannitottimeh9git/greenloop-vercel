@@ -105,6 +105,59 @@ async function updateReportStatus(id,status){
 window.updateReportStatus=updateReportStatus;
 document.getElementById('reportFilter')?.addEventListener('change',loadReports);
 
+
+// Recycling hub submissions (administrator only). This page reviews public
+// listings; it intentionally does not duplicate the public guide or forms.
+const HUB_STATUSES=['Pending Review','Available','Reserved','Collected','Sold','Rejected'];
+function hubStatusClass(status){
+ if(status==='Pending Review')return 'listing-pending';
+ if(status==='Rejected')return 'listing-rejected';
+ return 'listing-approved';
+}
+async function loadHubListings(){
+ const body=document.getElementById('hubListingRows');if(!body)return;
+ const filter=document.getElementById('hubListingFilter');
+ const status=filter?filter.value:'';
+ try{
+  const r=await fetch('api.php?action=admin_hub'+(status?'&status='+encodeURIComponent(status):''),{cache:'no-store'});
+  const d=await r.json();if(!d.success)throw Error(d.message);
+  const s=d.stats||{};
+  [['hubStatTotal',s.total],['hubStatPendingReview',s['Pending Review']],['hubStatAvailable',s.Available],['hubStatReserved',s.Reserved],['hubStatCollected',s.Collected],['hubStatRejected',s.Rejected]].forEach(([id,value])=>{const el=document.getElementById(id);if(el)el.textContent=value??0;});
+  body.innerHTML=d.listings.length?d.listings.map(x=>{
+   const when=x.created_at?new Date(String(x.created_at).replace(' ','T')).toLocaleString():'—';
+   const detail=String(x.description||'');
+   const short=detail.length>100?detail.slice(0,100)+'…':detail;
+   const digits=String(x.phone||'').replace(/[^+\d]/g,'');
+   const qty=Number(x.quantity);
+   const options=HUB_STATUSES.map(s=>`<option${s===x.status?' selected':''}>${s}</option>`).join('');
+   return `<tr>
+    <td><strong>${esc(x.seller_name)}</strong></td>
+    <td>${digits?`<a href="tel:${esc(digits)}">${esc(x.phone)}</a>`:esc(x.phone||'—')}</td>
+    <td><span class="status-pill">${esc(x.material)}</span></td>
+    <td>${Number.isFinite(qty)?qty:'—'} ${esc(x.unit||'')}</td>
+    <td>${esc(x.location)}</td>
+    <td class="report-detail" title="${esc(detail)}">${esc(short)||'<span class="muted-cell">—</span>'}</td>
+    <td>${when}</td>
+    <td><select class="report-status-select ${hubStatusClass(x.status)}" data-listing-id="${Number(x.id)}" onchange="updateHubListingStatus(${Number(x.id)},this.value)">${options}</select></td>
+   </tr>`;
+  }).join(''):'<tr><td colspan="8">No user listings found for this status.</td></tr>';
+ }catch(e){body.innerHTML=`<tr><td colspan="8">${esc(e.message)}</td></tr>`;}
+}
+async function updateHubListingStatus(id,status){
+ const target=document.getElementById('hubListMessage');
+ try{
+  const form=new FormData();form.append('listing_id',id);form.append('status',status);
+  const r=await fetch('api.php?action=admin_hub_status',{method:'POST',headers:headers,body:form});
+  const d=await r.json();
+  if(target){target.textContent=d.message;target.className='form-message '+(d.success?'success':'error');}
+  if(d.success)loadHubListings();
+ }catch(e){if(target){target.textContent='Could not update listing status. '+e.message;target.className='form-message error';}}
+}
+window.updateHubListingStatus=updateHubListingStatus;
+document.getElementById('hubListingFilter')?.addEventListener('change',loadHubListings);
+bindRefresh('refreshHubListings',loadHubListings,'hubListMessage','Listings');
+loadHubListings();
+
 async function cancelRequest(id,reference){
  if(!confirm(`Cancel collection ${reference}? Any active driver assignment will be stopped.`))return;
  const form=new FormData();form.append('request_id',id);

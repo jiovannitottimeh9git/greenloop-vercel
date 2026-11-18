@@ -1,0 +1,46 @@
+<section class="stats-grid hub-stats">
+  <div class="stat-card"><span>Total listings</span><strong id="hubStatTotal">—</strong><i class="fa-solid fa-boxes-stacked"></i></div>
+  <div class="stat-card"><span>Pending review</span><strong id="hubStatPendingReview">—</strong><i class="fa-solid fa-hourglass-half"></i></div>
+  <div class="stat-card"><span>Available</span><strong id="hubStatAvailable">—</strong><i class="fa-solid fa-circle-check"></i></div>
+  <div class="stat-card"><span>Reserved</span><strong id="hubStatReserved">—</strong><i class="fa-solid fa-handshake"></i></div>
+  <div class="stat-card"><span>Collected</span><strong id="hubStatCollected">—</strong><i class="fa-solid fa-truck-arrow-right"></i></div>
+  <div class="stat-card"><span>Rejected</span><strong id="hubStatRejected">—</strong><i class="fa-solid fa-circle-xmark"></i></div>
+</section>
+
+<section class="dash-panel" id="hub-listings">
+  <div class="panel-heading">
+    <div><span class="form-step">USER SUBMISSIONS</span><h2>Recyclable material listings</h2></div>
+    <div class="report-actions">
+      <label class="report-filter-label">Status
+        <select id="hubListingFilter">
+          <option value="">All statuses</option>
+          <option>Pending Review</option>
+          <option>Available</option>
+          <option>Reserved</option>
+          <option>Collected</option>
+          <option>Sold</option>
+          <option>Rejected</option>
+        </select>
+      </label>
+      <button class="btn btn-outline btn-small refresh-btn" id="refreshHubListings" type="button" title="Reload recycling hub listings"><i class="fa-solid fa-rotate"></i> <span>Refresh listings</span></button>
+      <a class="btn btn-outline btn-small" href="marketplace.php" target="_blank" rel="noopener">Public guide <i class="fa-solid fa-arrow-up-right-from-square"></i></a>
+    </div>
+  </div>
+  <p class="map-note">These listings are submitted through the public Recycling Hub form. This admin area is for review only — it does not show the public guide or the customer pickup request form.</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Seller</th><th>Contact</th><th>Material</th><th>Quantity</th><th>Location</th><th>Details</th><th>Submitted</th><th>Status</th></tr></thead>
+      <tbody id="hubListingRows"><tr><td colspan="8">Loading recycling hub listings…</td></tr></tbody>
+    </table>
+  </div>
+  <div id="hubListMessage" class="form-message" aria-live="polite"></div>
+</section>
+
+<section class="dash-panel hub-guide-panel">
+  <div class="panel-heading"><div><span class="form-step">ADMIN NOTE</span><h2>Why this page is different</h2></div></div>
+  <div class="hub-guide-list">
+    <div><i class="fa-solid fa-book-open"></i><div><strong>Public guide stays public</strong><span>Categories, preparation tips and Ghana recycling centre locations remain on the customer-facing Recycling Hub.</span></div></div>
+    <div><i class="fa-solid fa-inbox"></i><div><strong>Admin receives submissions</strong><span>When a user lists recyclable materials, the item appears here for review and status tracking.</span></div></div>
+    <div><i class="fa-solid fa-shield-halved"></i><div><strong>No customer actions here</strong><span>Requesting a pickup and browsing the hub are deliberately not duplicated inside the admin portal.</span></div></div>
+  </div>
+</section>

@@ -85,10 +85,20 @@ const ADMIN_PAGES = {
     heading: 'Community reports',
     description: 'Environmental issues submitted by the public.',
     content: 'admin/reports.html'
+  },
+  hub: {
+    file: 'admin-hub.php',
+    title: 'Recycling hub management',
+    eyebrow: 'GREENLOOP / RECYCLING HUB',
+    heading: 'Recycling hub',
+    description: 'Review material listings submitted through the public Recycling Hub.',
+    content: 'admin/hub.html'
   }
 };
 const ADMIN_PAGE_FILES = new Set([...Object.values(ADMIN_PAGES).map((p) => p.file), 'admin-create-account.php']);
 const REPORT_STATUSES = ['Submitted', 'Under Review', 'Assigned', 'Resolved', 'Rejected'];
+// Status values must match the recycling_listings_status_check constraint.
+const HUB_LISTING_STATUSES = ['Pending Review', 'Available', 'Reserved', 'Collected', 'Sold', 'Rejected'];
 
 function csrfToken(req, res) {
   let token = (req.headers.cookie || '')
@@ -218,6 +228,7 @@ app.get('/admin-fleet.php', (req, res) => renderAdminPage(req, res, 'fleet'));
 app.get('/admin-drivers.php', (req, res) => renderAdminPage(req, res, 'drivers'));
 app.get('/admin-vehicles.php', (req, res) => renderAdminPage(req, res, 'vehicles'));
 app.get('/admin-reports.php', (req, res) => renderAdminPage(req, res, 'reports'));
+app.get('/admin-hub.php', (req, res) => renderAdminPage(req, res, 'hub'));
 
 app.get('/driver.php', (req, res) => {
   const user = auth.readSession(req);
@@ -975,6 +986,44 @@ app.all('/api.php', parseMultipart, async (req, res) => {
       res.setHeader('Content-Type', row.evidence_mime || 'application/octet-stream');
       res.setHeader('Cache-Control', 'private, max-age=300');
       return res.send(Buffer.from(base64, 'base64'));
+    }
+
+    if (action === 'admin_hub' && method === 'GET') {
+      if (!auth.requireRole(req, res, 'admin')) return;
+      const status = str(req.query.status, 30);
+      const filtered = HUB_LISTING_STATUSES.includes(status);
+      const listings = await db.many(
+        `SELECT id, seller_name, phone, material, quantity, unit, location, description,
+                status, created_at
+         FROM recycling_listings
+         ${filtered ? 'WHERE status=$1' : ''}
+         ORDER BY created_at DESC
+         LIMIT 300`,
+        filtered ? [status] : []
+      );
+      const total = await db.one('SELECT COUNT(*)::int AS count FROM recycling_listings');
+      const grouped = await db.many('SELECT status, COUNT(*)::int AS count FROM recycling_listings GROUP BY status');
+      const stats = { total: total ? total.count : 0 };
+      HUB_LISTING_STATUSES.forEach((name) => { stats[name] = 0; });
+      grouped.forEach((row) => {
+        if (Object.prototype.hasOwnProperty.call(stats, row.status)) stats[row.status] = row.count;
+      });
+      return send(res, { success: true, listings, stats });
+    }
+
+    if (action === 'admin_hub_status' && method === 'POST') {
+      if (!auth.requireRole(req, res, 'admin')) return;
+      const id = Number(req.body.listing_id) || 0;
+      const status = str(req.body.status, 30);
+      if (!HUB_LISTING_STATUSES.includes(status)) {
+        return send(res, { success: false, message: 'Choose a valid listing status.' }, 422);
+      }
+      const row = await db.one(
+        'UPDATE recycling_listings SET status=$1 WHERE id=$2 RETURNING id, status',
+        [status, id]
+      );
+      if (!row) return send(res, { success: false, message: 'Listing not found.' }, 404);
+      return send(res, { success: true, message: 'Listing status updated.', status: row.status });
     }
 
     if (action === 'admin_options' && method === 'GET') {

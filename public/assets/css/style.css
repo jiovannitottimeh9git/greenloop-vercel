@@ -28,3 +28,17 @@
 @media(max-width:1050px){.hub-category-grid{grid-template-columns:repeat(2,1fr)}.hub-tip-grid{grid-template-columns:repeat(3,1fr)}.hub-centre-layout{grid-template-columns:1fr}.hub-map-wrap{position:static}.hub-map{height:380px}.hub-filter-bar{grid-template-columns:1fr 1fr}.hub-filter-bar label:first-child{grid-column:1/-1}}
 @media(max-width:760px){.hub-category-grid,.hub-value-grid{grid-template-columns:1fr}.hub-tip-grid{grid-template-columns:1fr 1fr}.hub-filter-bar{grid-template-columns:1fr}.hub-filter-bar label:first-child{grid-column:auto}.hub-centre-list{max-height:none;overflow:visible}.hub-map{height:320px}.hub-help{display:block}.hub-help-actions{margin-top:20px}.hub-cta-row .btn{width:100%;justify-content:center}}
 @media(max-width:480px){.hub-tip-grid{grid-template-columns:1fr}}
+
+/* Admin recycling hub: submission review, not the public guide */
+.hub-stats{grid-template-columns:repeat(3,1fr)}
+.hub-guide-panel{margin-top:20px}
+.hub-guide-list{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:16px}
+.hub-guide-list>div{display:flex;gap:12px;align-items:flex-start;background:#f7faf7;border:1px solid var(--line);border-radius:13px;padding:15px}
+.hub-guide-list>i{width:32px;height:32px;flex:0 0 32px;display:grid;place-items:center;border-radius:10px;background:#e9f5ec;color:var(--green);font-size:13px}
+.hub-guide-list strong{display:block;color:var(--forest);font-size:11px;margin-bottom:5px}
+.hub-guide-list span{display:block;color:var(--muted);font-size:10px;line-height:1.7}
+.report-status-select.listing-approved{background:#e9f7ed;color:#176b45;border-color:#bfe2cb}
+.report-status-select.listing-rejected{background:#fdecec;color:#a02929;border-color:#f2caca}
+.report-status-select.listing-pending{background:#fff6e5;color:#8a5a08;border-color:#f0dcb2}
+@media(max-width:1050px){.hub-stats{grid-template-columns:repeat(2,1fr)}.hub-guide-list{grid-template-columns:1fr}}
+@media(max-width:760px){.hub-stats{grid-template-columns:1fr 1fr}}
