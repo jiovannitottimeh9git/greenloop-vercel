@@ -92,6 +92,16 @@ CREATE TABLE IF NOT EXISTS environmental_reports (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS report_evidence (
+  id BIGSERIAL PRIMARY KEY,
+  report_id BIGINT NOT NULL REFERENCES environmental_reports(id) ON DELETE CASCADE,
+  mime_type VARCHAR(40) NOT NULL,
+  filename VARCHAR(200),
+  data BYTEA,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_report_evidence_report ON report_evidence(report_id);
+
 CREATE TABLE IF NOT EXISTS recycling_listings (
   id BIGSERIAL PRIMARY KEY,
   seller_name VARCHAR(120) NOT NULL,

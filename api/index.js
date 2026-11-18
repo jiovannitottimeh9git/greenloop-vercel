@@ -107,6 +107,10 @@ function renderPage(res, name, req, extra = {}) {
 // ---------- Page routes ----------
 app.get('/', (req, res) => renderPage(res, 'index', req));
 app.get('/index.php', (req, res) => renderPage(res, 'index', req));
+app.get('/services.php', (req, res) => renderPage(res, 'services', req));
+app.get('/how-it-works.php', (req, res) => renderPage(res, 'how-it-works', req));
+app.get('/about.php', (req, res) => renderPage(res, 'about', req));
+app.get('/request.php', (req, res) => renderPage(res, 'request', req));
 app.get('/track.php', (req, res) => renderPage(res, 'track', req));
 app.get('/report.php', (req, res) => renderPage(res, 'report', req));
 app.get('/marketplace.php', (req, res) => renderPage(res, 'marketplace', req));
