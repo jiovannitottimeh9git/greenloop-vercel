@@ -6,6 +6,7 @@ const multer = require('multer');
 const db = require('../lib/db');
 const auth = require('../lib/auth');
 const email = require('../lib/email');
+const locationUtils = require('../lib/location');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -239,26 +240,106 @@ app.all('/api.php', parseMultipart, async (req, res) => {
       if (!reference || !phone) return send(res, { success: false, message: 'Enter your reference number and phone number.' }, 422);
       const request = await db.one(
         `SELECT id, reference_code, customer_name, region, address, waste_category, preferred_date,
-         preferred_time, status, assigned_vehicle_id FROM collection_requests
+         preferred_time, status, assigned_vehicle_id, customer_latitude, customer_longitude
+         FROM collection_requests
          WHERE reference_code=$1 AND phone=$2 LIMIT 1`,
         [reference, phone]
       );
       if (!request) return send(res, { success: false, message: 'No matching collection was found. Check your details.' }, 404);
+
       let vehicle = null;
       let location = null;
-      if (request.assigned_vehicle_id) {
-        vehicle = await db.one('SELECT registration_number, vehicle_type FROM vehicles WHERE id=$1', [request.assigned_vehicle_id]);
-        location = await db.one(
+      const live = {
+        active: false,
+        driver_name: null,
+        distance_km: null,
+        eta_minutes: null,
+        age_label: 'Waiting for driver GPS',
+        trail: []
+      };
+
+      // Prefer the GPS feed for this specific job so an old trail from the
+      // same vehicle on a previous collection can never be shown by mistake.
+      const assignment = await db.one(
+        `SELECT va.id AS assignment_id, va.started_at, d.full_name AS driver_name,
+                v.id AS vehicle_id, v.registration_number, v.vehicle_type
+         FROM vehicle_assignments va
+         JOIN vehicles v ON v.id=va.vehicle_id
+         LEFT JOIN drivers d ON d.id=va.driver_id
+         WHERE va.collection_request_id=$1 AND va.active=TRUE
+         ORDER BY va.created_at DESC LIMIT 1`,
+        [request.id]
+      );
+
+      if (assignment) {
+        live.active = true;
+        live.driver_name = assignment.driver_name;
+        if (assignment.registration_number) {
+          vehicle = {
+            registration_number: assignment.registration_number,
+            vehicle_type: assignment.vehicle_type
+          };
+        }
+        const latest = await db.one(
+          `SELECT latitude, longitude, accuracy, recorded_at FROM vehicle_locations
+           WHERE assignment_id=$1 ORDER BY recorded_at DESC LIMIT 1`,
+          [assignment.assignment_id]
+        );
+        if (latest) {
+          location = {
+            latitude: num(latest.latitude),
+            longitude: num(latest.longitude),
+            accuracy: num(latest.accuracy),
+            recorded_at: latest.recorded_at
+          };
+        }
+        const trail = await db.many(
+          `SELECT latitude, longitude, recorded_at FROM vehicle_locations
+           WHERE assignment_id=$1 ORDER BY recorded_at DESC LIMIT 80`,
+          [assignment.assignment_id]
+        );
+        live.trail = trail.reverse().map((point) => ({
+          latitude: num(point.latitude),
+          longitude: num(point.longitude),
+          recorded_at: point.recorded_at
+        }));
+      }
+
+      // Backwards-compatible fallback for assignments created before live
+      // tracking, or when the assignment row has since been archived.
+      if (!location && request.assigned_vehicle_id) {
+        if (!vehicle) {
+          vehicle = await db.one('SELECT registration_number, vehicle_type FROM vehicles WHERE id=$1', [request.assigned_vehicle_id]);
+        }
+        const fallback = await db.one(
           `SELECT latitude, longitude, accuracy, recorded_at FROM vehicle_locations
            WHERE vehicle_id=$1 ORDER BY recorded_at DESC LIMIT 1`,
           [request.assigned_vehicle_id]
         );
-        if (location) {
-          location.latitude = num(location.latitude);
-          location.longitude = num(location.longitude);
+        if (fallback) {
+          location = {
+            latitude: num(fallback.latitude),
+            longitude: num(fallback.longitude),
+            accuracy: num(fallback.accuracy),
+            recorded_at: fallback.recorded_at
+          };
         }
       }
-      return send(res, { success: true, request, vehicle, location });
+
+      const destination = {
+        latitude: num(request.customer_latitude),
+        longitude: num(request.customer_longitude)
+      };
+      if (location && destination.latitude !== null && destination.longitude !== null) {
+        const km = locationUtils.distanceKm(location, destination);
+        if (km !== null) {
+          live.distance_km = Math.round(km * 10) / 10;
+          live.eta_minutes = locationUtils.arrivalMinutes(km);
+        }
+      }
+      live.age_label = locationUtils.ageLabel(location && location.recorded_at);
+
+      return send(res, { success: true, request, vehicle, location, live });
     }
 
     if (action === 'report' && method === 'POST') {
@@ -344,6 +425,7 @@ app.all('/api.php', parseMultipart, async (req, res) => {
       const assignments = await db.many(
         `SELECT va.id, cr.id AS request_id, cr.reference_code, cr.customer_name, cr.phone, cr.region,
          cr.address, cr.waste_category, cr.preferred_date, cr.preferred_time, cr.status,
+         cr.customer_latitude, cr.customer_longitude,
          v.id AS vehicle_id, v.registration_number
          FROM vehicle_assignments va
          JOIN collection_requests cr ON cr.id = va.collection_request_id
@@ -374,24 +456,40 @@ app.all('/api.php', parseMultipart, async (req, res) => {
       const user = auth.requireRole(req, res, 'driver');
       if (!user) return;
       const assignment = Number(req.body.assignment_id) || 0;
-      const latitude = num(req.body.latitude);
-      const longitude = num(req.body.longitude);
-      const accuracy = num(req.body.accuracy);
-      if (latitude === null || longitude === null || latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
-        return send(res, { success: false, message: 'Invalid GPS coordinates.' }, 422);
-      }
+      const fix = locationUtils.normaliseFix(req.body);
+      if (!fix) return send(res, { success: false, message: 'Invalid GPS coordinates.' }, 422);
       const a = await db.one(
         'SELECT vehicle_id FROM vehicle_assignments WHERE id=$1 AND driver_id=$2 AND active=TRUE',
         [assignment, user.id]
       );
       if (!a) return send(res, { success: false, message: 'No active assignment found.' }, 403);
+
+      // Drop near-duplicate fixes so a stationary phone cannot flood the
+      // trail table. Fresh fixes are still stored every few seconds as a
+      // heartbeat, which lets the customer tell that tracking is alive.
+      const previous = await db.one(
+        `SELECT latitude, longitude, recorded_at FROM vehicle_locations
+         WHERE assignment_id=$1 ORDER BY recorded_at DESC LIMIT 1`,
+        [assignment]
+      );
+      if (previous) {
+        const elapsed = Date.now() - new Date(previous.recorded_at).getTime();
+        const moved = locationUtils.distanceKm(
+          { latitude: num(previous.latitude), longitude: num(previous.longitude) },
+          fix
+        );
+        if (elapsed < 3000 && moved !== null && moved < 0.005) {
+          return send(res, { success: true, message: 'Location unchanged.', skipped: true });
+        }
+      }
+
       await db.query(
         `INSERT INTO vehicle_locations (vehicle_id, driver_id, assignment_id, latitude, longitude, accuracy)
          VALUES ($1,$2,$3,$4,$5,$6)`,
-        [a.vehicle_id, user.id, assignment, latitude, longitude, accuracy]
+        [a.vehicle_id, user.id, assignment, fix.latitude, fix.longitude, fix.accuracy]
       );
       await db.query("UPDATE vehicles SET status='Active' WHERE id=$1", [a.vehicle_id]);
-      return send(res, { success: true, message: 'Location updated.' });
+      return send(res, { success: true, message: 'Location updated.', skipped: false });
     }
 
     if (action === 'driver_complete' && method === 'POST') {
