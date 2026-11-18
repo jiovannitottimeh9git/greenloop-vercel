@@ -1,0 +1,43 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Admin Dashboard | GreenLoop</title><meta name="csrf-token" content="{{CSRF}}"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"><link rel="stylesheet" href="assets/css/style.css"><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"></head><body class="dashboard-page"><aside class="sidebar"><a class="brand" href="index.php"><span class="brand-mark"><i class="fa-solid fa-leaf"></i></span><span>Green<span>Loop</span><small>CONTROL CENTRE</small></span></a><div class="side-label">WORKSPACE</div><a class="side-link active" href="admin.php"><i class="fa-solid fa-grid-2"></i> Overview</a><a class="side-link" href="#requests"><i class="fa-solid fa-truck"></i> Collection requests</a><a class="side-link" href="#fleet"><i class="fa-solid fa-map-location-dot"></i> Live fleet</a><a class="side-link" href="#drivers"><i class="fa-solid fa-users-gear"></i> Driver Management</a><a class="side-link" href="#vehicles"><i class="fa-solid fa-truck"></i> Vehicle Management</a><a class="side-link" href="report.php"><i class="fa-solid fa-flag"></i> Reports</a><a class="side-link" href="marketplace.php"><i class="fa-solid fa-recycle"></i> Recycling hub</a><a class="side-link" href="admin-create-account.php"><i class="fa-solid fa-user-plus"></i> Create admin account</a><div class="side-bottom"><span class="admin-avatar">GL</span><div><strong>{{FULLNAME}}</strong><small>Administrator</small></div><button class="icon-btn" data-logout><i class="fa-solid fa-arrow-right-from-bracket"></i></button></div></aside>
+<main class="dashboard-main"><header class="dash-top"><div><span class="eyebrow">GREENLOOP / OVERVIEW</span><h1>Good day, {{NAME}}.</h1><p>Here's what's happening across your waste collection operations.</p></div><div class="dash-date"><i class="fa-regular fa-calendar"></i> {{DATE}}</div><a class="btn btn-primary btn-small" href="#drivers">Manage Drivers <i class="fa-solid fa-arrow-right"></i></a></header><div id="adminMessage" class="form-message"></div><section class="stats-grid"><div class="stat-card"><span>Total requests</span><strong id="statRequests">—</strong><i class="fa-solid fa-clipboard-list"></i></div><div class="stat-card"><span>Pending requests</span><strong id="statPending">—</strong><i class="fa-solid fa-hourglass-half"></i></div><div class="stat-card"><span>Completed pickups</span><strong id="statCompleted">—</strong><i class="fa-solid fa-circle-check"></i></div><div class="stat-card"><span>Active drivers</span><strong id="statDrivers">—</strong><i class="fa-solid fa-user-gear"></i></div><div class="stat-card"><span>Fleet vehicles</span><strong id="statVehicles">—</strong><i class="fa-solid fa-truck"></i></div><div class="stat-card"><span>Open reports</span><strong id="statReports">—</strong><i class="fa-solid fa-flag"></i></div></section>
+<section class="dash-panel" id="fleet"><div class="panel-heading"><div><span class="form-step">FLEET MONITOR</span><h2>Active vehicle locations</h2></div><span class="live-label"><span class="pulse-dot"></span> Live data</span></div><div id="adminMap" class="admin-map"></div><p class="map-note">Only vehicles with recent GPS updates appear here. Drivers must be signed in, assigned and actively sharing their device location.</p></section>
+<section class="dash-panel" id="requests"><div class="panel-heading"><div><span class="form-step">LATEST ACTIVITY</span><h2>Collection requests</h2></div><button class="btn btn-outline btn-small" id="refreshAdmin">Refresh <i class="fa-solid fa-rotate"></i></button></div><div class="table-wrap"><table><thead><tr><th>Reference</th><th>Customer</th><th>Area</th><th>Waste</th><th>Status</th><th>Created</th></tr></thead><tbody id="requestRows"><tr><td colspan="6">Loading requests…</td></tr></tbody></table></div></section>
+
+<section class="dash-panel" id="vehicles">
+ <div class="panel-heading"><div><span class="form-step">FLEET MANAGEMENT</span><h2>Register a vehicle</h2></div><span class="live-label">Add vehicles to your fleet</span></div>
+ <p class="map-note">Register each waste collection truck here. Once saved, it will appear in the vehicle dropdown when assigning collection requests to drivers.</p>
+ <form id="createVehicleForm" class="driver-create-form">
+  <label>Registration number<input type="text" name="registration_number" placeholder="e.g. GR-1234-24" maxlength="40" required></label>
+  <label>Vehicle type<input type="text" name="vehicle_type" placeholder="e.g. Waste collection truck" maxlength="80" required></label>
+  <label>Vehicle model <span class="optional-label">(optional)</span><input type="text" name="vehicle_model" placeholder="e.g. Isuzu NPR" maxlength="100"></label>
+  <label>Capacity <span class="optional-label">(optional)</span><input type="text" name="capacity" placeholder="e.g. 5 tonnes" maxlength="60"></label>
+  <button class="btn btn-primary" type="submit">Add vehicle <i class="fa-solid fa-truck"></i></button>
+ </form>
+ <div id="vehicleCreateMessage" class="form-message" aria-live="polite"></div>
+</section>
+<section class="dash-panel">
+ <div class="panel-heading"><div><span class="form-step">REGISTERED FLEET</span><h2>Vehicles</h2></div><button class="btn btn-outline btn-small" id="refreshVehicles" type="button">Refresh <i class="fa-solid fa-rotate"></i></button></div>
+ <div class="table-wrap"><table><thead><tr><th>Registration</th><th>Vehicle type</th><th>Model</th><th>Capacity</th><th>Assigned driver</th><th>Status</th></tr></thead><tbody id="vehicleRows"><tr><td colspan="6">Loading vehicles…</td></tr></tbody></table></div>
+ <div id="vehicleListMessage" class="form-message" aria-live="polite"></div>
+</section>
+
+<section class="dash-panel"><div class="panel-heading"><div><span class="form-step">ASSIGNMENT</span><h2>Assign a driver and vehicle</h2></div></div><form id="assignForm" class="assign-form"><label>Collection request<select name="request_id" id="assignRequest" required><option value="">Choose request</option></select></label><label>Driver<select name="driver_id" id="assignDriver" required><option value="">Choose driver</option></select></label><label>Vehicle<select name="vehicle_id" id="assignVehicle" required><option value="">Choose vehicle</option></select></label><button class="btn btn-primary">Assign collection <i class="fa-solid fa-arrow-right"></i></button></form><div id="assignMessage" class="form-message"></div></section>
+<section class="dash-panel" id="drivers">
+ <div class="panel-heading"><div><span class="form-step">DRIVER MANAGEMENT</span><h2>Register a driver</h2></div><span class="live-label">Admin controlled access</span></div>
+ <p class="map-note">Create accounts for approved drivers. They will sign in with their email address and the password you set here.</p>
+ <form id="createDriverForm" class="driver-create-form">
+  <label>Full name<input type="text" name="full_name" placeholder="e.g. Kwame Mensah" maxlength="120" required></label>
+  <label>Email address<input type="email" name="email" placeholder="driver@example.com" maxlength="160" required></label>
+  <label>Phone number<input type="tel" name="phone" placeholder="e.g. 0241234567" maxlength="30" required></label>
+  <label>Driver licence number <span class="optional-label">(optional)</span><input type="text" name="licence_number" placeholder="Licence number" maxlength="80"></label>
+  <label>Temporary password<input type="password" name="password" minlength="8" placeholder="At least 8 characters" required></label>
+  <button class="btn btn-primary" type="submit">Create driver account <i class="fa-solid fa-user-plus"></i></button>
+ </form>
+ <div id="driverCreateMessage" class="form-message" aria-live="polite"></div>
+</section>
+<section class="dash-panel">
+ <div class="panel-heading"><div><span class="form-step">REGISTERED TEAM</span><h2>Driver accounts</h2></div><button class="btn btn-outline btn-small" id="refreshDrivers" type="button">Refresh <i class="fa-solid fa-rotate"></i></button></div>
+ <div class="table-wrap"><table><thead><tr><th>Driver</th><th>Contact</th><th>Licence</th><th>Active jobs</th><th>Account status</th><th>Action</th></tr></thead><tbody id="driverRows"><tr><td colspan="6">Loading drivers…</td></tr></tbody></table></div>
+ <div id="driverListMessage" class="form-message" aria-live="polite"></div>
+</section>
+</main><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script src="assets/js/admin.js"></script></body></html>

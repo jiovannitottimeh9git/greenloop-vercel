@@ -1,0 +1,19 @@
+{
+  "name": "greenloop-vercel",
+  "version": "1.0.0",
+  "private": true,
+  "description": "GreenLoop waste collection system - Node/Express backend for Vercel",
+  "main": "api/index.js",
+  "scripts": {
+    "start": "node api/index.js",
+    "dev": "node api/index.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cookie-parser": "^1.4.6",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^2.0.2",
+    "pg": "^8.13.1"
+  }
+}

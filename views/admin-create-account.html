@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Create Admin Account | GreenLoop</title>
+<meta name="csrf-token" content="{{CSRF}}">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body class="login-page">
+<form id="createAdminForm" class="login-card">
+ <a class="brand" href="index.php"><span class="brand-mark"><i class="fa-solid fa-leaf"></i></span><span>Green<span>Loop</span><small>ADMINISTRATION</small></span></a>
+ <div class="eyebrow">ADMIN ACCOUNT MANAGEMENT</div>
+ <h1>Create an <em>account.</em></h1>
+ <p>Only signed-in administrators can create another administrator account.</p>
+ <label>Full name<input name="full_name" required maxlength="120" autocomplete="name"></label>
+ <label>Username<input name="username" required minlength="4" maxlength="80" autocomplete="username"></label>
+ <label>Password (10+ characters)<input name="password" type="password" required minlength="10" autocomplete="new-password"></label>
+ <label>Confirm password<input name="confirm_password" type="password" required minlength="10" autocomplete="new-password"></label>
+ <button class="btn btn-primary submit-btn" type="submit">Create admin account <i class="fa-solid fa-user-plus"></i></button>
+ <div id="createAdminMessage" class="form-message" role="status"></div>
+ <a class="back-link" href="admin.php">Return to dashboard</a>
+</form>
+<script src="assets/js/app.js"></script>
+</body>
+</html>

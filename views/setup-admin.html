@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Initial Admin Setup | GreenLoop</title>
+  <link rel="stylesheet" href="assets/css/style.css">
+  <meta name="csrf-token" content="{{CSRF}}">
+</head>
+<body class="login-page">
+  <form id="setupForm" class="login-card">
+    <h1>Initial <em>setup</em></h1>
+    <p>Create the first GreenLoop administrator. This page is disabled once an admin exists.</p>
+    {{SETUP_FORM}}
+    <p id="setupMessage" class="form-message"></p>
+    <a class="back-link" href="admin-login.php">Go to administrator login</a>
+  </form>
+  <script>
+    document.getElementById('setupForm')?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const f = e.currentTarget;
+      const msg = document.getElementById('setupMessage');
+      const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
+      try {
+        const r = await fetch('api.php?action=setup_admin', {
+          method: 'POST',
+          headers: { 'X-CSRF-Token': csrf },
+          body: new FormData(f)
+        });
+        const d = await r.json();
+        msg.textContent = d.message || (d.success ? 'Done.' : 'Something went wrong.');
+        msg.className = 'form-message ' + (d.success ? 'success' : 'error');
+      } catch (err) {
+        msg.textContent = 'Could not connect to the server.';
+        msg.className = 'form-message error';
+      }
+    });
+  </script>
+</body>
+</html>

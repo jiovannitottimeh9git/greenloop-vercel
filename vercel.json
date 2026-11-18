@@ -1,0 +1,17 @@
+{
+  "version": 2,
+  "rewrites": [
+    { "source": "/api.php", "destination": "/api/index.js" },
+    { "source": "/", "destination": "/api/index.js" },
+    { "source": "/index.php", "destination": "/api/index.js" },
+    { "source": "/admin.php", "destination": "/api/index.js" },
+    { "source": "/driver.php", "destination": "/api/index.js" },
+    { "source": "/admin-login.php", "destination": "/api/index.js" },
+    { "source": "/driver-login.php", "destination": "/api/index.js" },
+    { "source": "/admin-create-account.php", "destination": "/api/index.js" },
+    { "source": "/setup-admin.php", "destination": "/api/index.js" },
+    { "source": "/track.php", "destination": "/api/index.js" },
+    { "source": "/report.php", "destination": "/api/index.js" },
+    { "source": "/marketplace.php", "destination": "/api/index.js" }
+  ]
+}
