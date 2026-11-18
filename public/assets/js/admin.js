@@ -23,14 +23,17 @@ async function loadAdmin(){
  const msg=document.getElementById('adminMessage');
  try{
   const r=await fetch('api.php?action=admin_data',{cache:'no-store'});const d=await r.json();if(!d.success)throw Error(d.message);
-  Object.entries({statRequests:d.stats.requests,statPending:d.stats.pending,statCompleted:d.stats.completed,statDrivers:d.stats.drivers,statVehicles:d.stats.vehicles,statReports:d.stats.reports}).forEach(([id,v])=>document.getElementById(id).textContent=v);
-  const tbody=document.getElementById('requestRows');tbody.innerHTML=d.requests.length?d.requests.map(x=>`<tr><td><strong>${esc(x.reference_code)}</strong></td><td>${esc(x.customer_name)}<small>${esc(x.phone)}</small></td><td>${esc(x.region)}</td><td>${esc(x.waste_category)}</td><td><span class="status-pill">${esc(x.status)}</span></td><td>${new Date(x.created_at.replace(' ','T')).toLocaleDateString()}</td><td>${['Completed','Cancelled'].includes(x.status)?'<span class="muted-cell">—</span>':`<button class="btn btn-outline btn-small" type="button" onclick="cancelRequest(${Number(x.id)},'${esc(x.reference_code)}')">Cancel</button>`}</td></tr>`).join(''):'<tr><td colspan="7">No collection requests yet.</td></tr>';
-  if(!adminMap){adminMap=L.map('adminMap').setView([5.6037,-0.187],11);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap'}).addTo(adminMap);}
-  markers.forEach(m=>adminMap.removeLayer(m));markers=[];
-  d.vehicles.filter(v=>v.latitude&&v.longitude).forEach(v=>{const m=L.marker([v.latitude,v.longitude]).addTo(adminMap).bindPopup(`<strong>${esc(v.registration_number)}</strong><br>${esc(v.driver_name||'Driver')}<br>${esc(v.vehicle_type)}`);markers.push(m);});
+  Object.entries({statRequests:d.stats.requests,statPending:d.stats.pending,statCompleted:d.stats.completed,statDrivers:d.stats.drivers,statVehicles:d.stats.vehicles,statReports:d.stats.reports}).forEach(([id,v])=>{const el=document.getElementById(id);if(el)el.textContent=v;});
+  const tbody=document.getElementById('requestRows');
+  if(tbody)tbody.innerHTML=d.requests.length?d.requests.map(x=>`<tr><td><strong>${esc(x.reference_code)}</strong></td><td>${esc(x.customer_name)}<small>${esc(x.phone)}</small></td><td>${esc(x.region)}</td><td>${esc(x.waste_category)}</td><td><span class="status-pill">${esc(x.status)}</span></td><td>${new Date(x.created_at.replace(' ','T')).toLocaleDateString()}</td><td>${['Completed','Cancelled'].includes(x.status)?'<span class="muted-cell">—</span>':`<button class="btn btn-outline btn-small" type="button" onclick="cancelRequest(${Number(x.id)},'${esc(x.reference_code)}')">Cancel</button>`}</td></tr>`).join(''):'<tr><td colspan="7">No collection requests yet.</td></tr>';
+  if(document.getElementById('adminMap')){
+   if(!adminMap){adminMap=L.map('adminMap').setView([5.6037,-0.187],11);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap'}).addTo(adminMap);}
+   markers.forEach(m=>adminMap.removeLayer(m));markers=[];
+   d.vehicles.filter(v=>v.latitude&&v.longitude).forEach(v=>{const m=L.marker([v.latitude,v.longitude]).addTo(adminMap).bindPopup(`<strong>${esc(v.registration_number)}</strong><br>${esc(v.driver_name||'Driver')}<br>${esc(v.vehicle_type)}`);markers.push(m);});
+  }
   loadCompleted();
-  msg.textContent='';
- }catch(e){msg.textContent='Could not load dashboard data. '+e.message;msg.className='form-message error';}
+  if(msg)msg.textContent='';
+ }catch(e){if(msg){msg.textContent='Could not load dashboard data. '+e.message;msg.className='form-message error';}}
 }
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 
@@ -81,7 +84,7 @@ async function cancelRequest(id,reference){
  }catch(e){target.textContent='Could not cancel this collection. '+e.message;target.className='form-message error';}
 }
 window.cancelRequest=cancelRequest;
-async function loadOptions(){const r=await fetch('api.php?action=admin_options');const d=await r.json();if(!d.success)return;[['assignRequest',d.requests,x=>`${x.reference_code} — ${x.customer_name}`],['assignDriver',d.drivers,x=>x.full_name],['assignVehicle',d.vehicles,x=>x.registration_number]].forEach(([id,arr,label])=>{const el=document.getElementById(id);el.innerHTML='<option value="">Choose…</option>'+arr.map(x=>`<option value="${x.id}">${esc(label(x))}</option>`).join('');});}
+async function loadOptions(){const r=await fetch('api.php?action=admin_options');const d=await r.json();if(!d.success)return;[['assignRequest',d.requests,x=>`${x.reference_code} — ${x.customer_name}`],['assignDriver',d.drivers,x=>x.full_name],['assignVehicle',d.vehicles,x=>x.registration_number]].forEach(([id,arr,label])=>{const el=document.getElementById(id);if(!el)return;el.innerHTML='<option value="">Choose…</option>'+arr.map(x=>`<option value="${x.id}">${esc(label(x))}</option>`).join('');});}
 bindRefresh('refreshAdmin',loadAdmin,'requestListMessage','Requests');
 bindRefresh('refreshCompleted',loadCompleted,'completedListMessage','History');
 document.getElementById('assignForm')?.addEventListener('submit',async e=>{e.preventDefault();const f=e.currentTarget;const r=await fetch('api.php?action=admin_assign',{method:'POST',headers:headers,body:new FormData(f)});const d=await r.json();const m=document.getElementById('assignMessage');m.textContent=d.message;m.className='form-message '+(d.success?'success':'error');if(d.success){f.reset();loadAdmin();loadOptions();}});

@@ -28,6 +28,59 @@ const parseMultipart = (req, res, next) => {
 const VIEWS = path.join(__dirname, '..', 'views');
 const PUBLIC = path.join(__dirname, '..', 'public');
 
+// Each admin area is now a separate linked page.
+const ADMIN_PAGES = {
+  overview: {
+    file: 'admin.php',
+    title: 'Overview',
+    eyebrow: 'GREENLOOP / OVERVIEW',
+    description: "Here's what's happening across your waste collection operations.",
+    content: 'admin/overview.html',
+    greeting: true
+  },
+  requests: {
+    file: 'admin-requests.php',
+    title: 'Collection requests',
+    eyebrow: 'GREENLOOP / COLLECTION REQUESTS',
+    heading: 'Collection requests',
+    description: 'Review incoming pickups, assign drivers and reassign active jobs.',
+    content: 'admin/requests.html'
+  },
+  completed: {
+    file: 'admin-completed.php',
+    title: 'Completed collections',
+    eyebrow: 'GREENLOOP / COLLECTION HISTORY',
+    heading: 'Completed collections',
+    description: 'A clear record of finished and cancelled pickups.',
+    content: 'admin/completed.html'
+  },
+  fleet: {
+    file: 'admin-fleet.php',
+    title: 'Live fleet',
+    eyebrow: 'GREENLOOP / LIVE FLEET',
+    heading: 'Live fleet',
+    description: 'Vehicles currently sharing their GPS location.',
+    content: 'admin/fleet.html'
+  },
+  drivers: {
+    file: 'admin-drivers.php',
+    title: 'Driver management',
+    eyebrow: 'GREENLOOP / DRIVER MANAGEMENT',
+    heading: 'Driver management',
+    description: 'Create driver accounts and control who can access the driver portal.',
+    content: 'admin/drivers.html'
+  },
+  vehicles: {
+    file: 'admin-vehicles.php',
+    title: 'Vehicle management',
+    eyebrow: 'GREENLOOP / VEHICLE MANAGEMENT',
+    heading: 'Vehicle management',
+    description: 'Register trucks and manage your collection fleet.',
+    content: 'admin/vehicles.html'
+  }
+};
+const ADMIN_PAGE_FILES = new Set([...Object.values(ADMIN_PAGES).map((p) => p.file), 'admin-create-account.php']);
+
 function csrfToken(req, res) {
   let token = (req.headers.cookie || '')
     .split(';')
@@ -93,10 +146,10 @@ function renderPage(res, name, req, extra = {}) {
     NAME: user ? String(user.name || '').split(' ')[0] : '',
     FULLNAME: user ? user.name || '' : '',
     DATE: new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
-    NEXT: req.query.next === 'admin-create-account.php' ? 'admin-create-account.php' : 'admin.php',
+    NEXT: ADMIN_PAGE_FILES.has(req.query.next) ? req.query.next : 'admin.php',
     ...extra
   };
-  const RAW_KEYS = new Set(['SETUP_FORM']);
+  const RAW_KEYS = new Set(['SETUP_FORM', 'ADMIN_CONTENT']);
   html = html.replace(/\{\{(\w+)\}\}/g, (match, key) => {
     if (!(key in values)) return match;
     const value = String(values[key]);
@@ -105,6 +158,33 @@ function renderPage(res, name, req, extra = {}) {
   });
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.send(html);
+}
+
+function renderAdminPage(req, res, key) {
+  const user = auth.readSession(req);
+  const page = ADMIN_PAGES[key];
+  if (!user || user.role !== 'admin') return res.redirect(`/admin-login.php?next=${page.file}`);
+
+  let content;
+  try {
+    content = fs.readFileSync(path.join(VIEWS, page.content), 'utf8');
+  } catch {
+    return res.status(500).send('Admin page content missing.');
+  }
+
+  const active = {};
+  for (const name of Object.keys(ADMIN_PAGES)) active[`ACTIVE_${name.toUpperCase()}`] = name === key ? 'active' : '';
+  const firstName = String(user.name || '').split(' ')[0];
+
+  renderPage(res, 'admin-shell', req, {
+    PAGE_TITLE: page.title,
+    VIEW_KEY: key,
+    EYEBROW: page.eyebrow,
+    HEADING: page.greeting ? `Good day, ${firstName}.` : page.heading,
+    DESCRIPTION: page.description,
+    ADMIN_CONTENT: content,
+    ...active
+  });
 }
 
 // ---------- Page routes ----------
@@ -121,11 +201,13 @@ app.get('/marketplace.php', (req, res) => renderPage(res, 'marketplace', req));
 app.get('/admin-login.php', (req, res) => renderPage(res, 'admin-login', req));
 app.get('/driver-login.php', (req, res) => renderPage(res, 'driver-login', req));
 
-app.get('/admin.php', (req, res) => {
-  const user = auth.readSession(req);
-  if (!user || user.role !== 'admin') return res.redirect('/admin-login.php');
-  renderPage(res, 'admin', req);
-});
+app.get('/admin.php', (req, res) => renderAdminPage(req, res, 'overview'));
+app.get('/admin-overview.php', (req, res) => renderAdminPage(req, res, 'overview'));
+app.get('/admin-requests.php', (req, res) => renderAdminPage(req, res, 'requests'));
+app.get('/admin-completed.php', (req, res) => renderAdminPage(req, res, 'completed'));
+app.get('/admin-fleet.php', (req, res) => renderAdminPage(req, res, 'fleet'));
+app.get('/admin-drivers.php', (req, res) => renderAdminPage(req, res, 'drivers'));
+app.get('/admin-vehicles.php', (req, res) => renderAdminPage(req, res, 'vehicles'));
 
 app.get('/driver.php', (req, res) => {
   const user = auth.readSession(req);
@@ -419,8 +501,8 @@ app.all('/api.php', parseMultipart, async (req, res) => {
       const session = { id: Number(user.id), name: user.full_name, role };
       auth.setSessionCookie(res, session);
       const next = String(req.body.next || '');
-      const redirect = role === 'admin' && next === 'admin-create-account.php'
-        ? 'admin-create-account.php'
+      const redirect = role === 'admin' && ADMIN_PAGE_FILES.has(next)
+        ? next
         : (role === 'admin' ? 'admin.php' : 'driver.php');
       return send(res, { success: true, redirect });
     }
