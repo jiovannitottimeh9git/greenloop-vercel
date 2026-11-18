@@ -9,6 +9,7 @@ function setAdminSidebar(open){
   document.querySelector('.dashboard-page .sidebar-overlay')?.classList.toggle('open',open);
   document.body.classList.toggle('sidebar-open',open);
   sidebarToggle?.setAttribute('aria-expanded',String(open));
+  requestAnimationFrame(()=>adminMap?.invalidateSize());
 }
 sidebarToggle?.addEventListener('click',()=>setAdminSidebar(!adminSidebar?.classList.contains('open')));
 document.querySelectorAll('[data-sidebar-close]').forEach(el=>el.addEventListener('click',()=>setAdminSidebar(false)));
@@ -16,6 +17,8 @@ document.querySelectorAll('.sidebar .side-link').forEach(link=>{
   if((link.getAttribute('href')||'').startsWith('#')) link.addEventListener('click',()=>setAdminSidebar(false));
 });
 document.addEventListener('keydown',e=>{if(e.key==='Escape')setAdminSidebar(false);});
+adminSidebar?.addEventListener('transitionend',()=>adminMap?.invalidateSize());
+window.addEventListener('resize',()=>adminMap?.invalidateSize());
 async function loadAdmin(){
  const msg=document.getElementById('adminMessage');
  try{
