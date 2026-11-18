@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const multer = require('multer');
 const db = require('../lib/db');
 const auth = require('../lib/auth');
+const email = require('../lib/email');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -196,6 +197,7 @@ app.all('/api.php', parseMultipart, async (req, res) => {
     if (action === 'create_request' && method === 'POST') {
       const name = str(req.body.name, 120);
       const phone = str(req.body.phone, 30);
+      const customerEmail = str(req.body.email, 160).toLowerCase();
       const region = str(req.body.region, 80);
       let address = str(req.body.address, 255);
       const category = str(req.body.category, 60);
@@ -209,6 +211,9 @@ app.all('/api.php', parseMultipart, async (req, res) => {
       if (!name || !phone || !region || !allowed.includes(category)) {
         return send(res, { success: false, message: 'Please provide your name, phone, region and waste category.' }, 422);
       }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail)) {
+        return send(res, { success: false, message: 'Please provide a valid email address so we can notify you when your pickup is completed.' }, 422);
+      }
       if (lat === null || lng === null || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
         return send(res, { success: false, message: 'Choose a pickup location on the map or add your current GPS location.' }, 422);
       }
@@ -219,10 +224,10 @@ app.all('/api.php', parseMultipart, async (req, res) => {
       const reference = ref('WW');
       await db.query(
         `INSERT INTO collection_requests
-         (reference_code, customer_name, phone, region, address, waste_category, estimated_quantity,
+         (reference_code, customer_name, phone, email, region, address, waste_category, estimated_quantity,
           preferred_date, preferred_time, customer_latitude, customer_longitude, notes, status)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'Pending')`,
-        [reference, name, phone, region, address, category, quantity || null,
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'Pending')`,
+        [reference, name, phone, customerEmail, region, address, category, quantity || null,
           date || null, time || null, lat, lng, notes || null]
       );
       return send(res, { success: true, message: 'Your collection request has been received.', reference });
@@ -400,10 +405,61 @@ app.all('/api.php', parseMultipart, async (req, res) => {
         [assignment, user.id]
       );
       if (!a) return send(res, { success: false, message: 'Assignment not found.' }, 404);
+      const details = await db.one(
+        `SELECT cr.id, cr.reference_code, cr.customer_name, cr.email, cr.waste_category, cr.address,
+                cr.preferred_date, v.registration_number, NOW() AS completed_at
+         FROM collection_requests cr
+         LEFT JOIN vehicles v ON v.id = cr.assigned_vehicle_id
+         WHERE cr.id=$1`,
+        [a.request_id]
+      );
       await db.query("UPDATE collection_requests SET status='Completed', updated_at=NOW() WHERE id=$1", [a.request_id]);
       await db.query('UPDATE vehicle_assignments SET active=FALSE, completed_at=NOW() WHERE id=$1', [assignment]);
       await db.query("UPDATE vehicles SET status='Available' WHERE id=$1", [a.vehicle_id]);
-      return send(res, { success: true, message: 'Pickup completed.' });
+
+      let emailResult = { ok: false, skipped: true, reason: 'no_recipient' };
+      if (details && details.email) {
+        try {
+          const alreadySent = await db.one(
+            "SELECT id FROM notification_logs WHERE request_id=$1 AND notification_type='pickup_completed' LIMIT 1",
+            [a.request_id]
+          );
+          if (alreadySent) {
+            emailResult = { ok: true, skipped: true, reason: 'already_sent' };
+          } else {
+            emailResult = await email.sendPickupCompletedEmail(details);
+            await db.query(
+              `INSERT INTO notification_logs (request_id, notification_type, recipient, status, error)
+               VALUES ($1,'pickup_completed',$2,$3,$4)`,
+              [
+                a.request_id,
+                details.email,
+                emailResult.ok ? 'sent' : (emailResult.skipped ? 'skipped' : 'failed'),
+                emailResult.ok || emailResult.skipped ? null : String(emailResult.reason || '').slice(0, 1000)
+              ]
+            );
+          }
+        } catch (err) {
+          console.error('Pickup notification step failed:', err.message);
+          emailResult = { ok: false, skipped: false, reason: err.message };
+        }
+      }
+
+      let message = 'Pickup completed, but the completion email could not be sent.';
+      if (emailResult.ok && !emailResult.skipped) message = 'Pickup completed. Completion email sent.';
+      else if (emailResult.reason === 'already_sent') message = 'Pickup completed. Completion email was already sent.';
+      else if (emailResult.reason === 'missing_configuration') message = 'Pickup completed. Email notifications are not configured yet.';
+      else if (emailResult.reason === 'no_recipient') message = 'Pickup completed. No email address was provided for this request.';
+
+      return send(res, {
+        success: true,
+        message,
+        email: {
+          sent: Boolean(emailResult.ok && !emailResult.skipped),
+          skipped: Boolean(emailResult.skipped),
+          reason: emailResult.reason || null
+        }
+      });
     }
 
     if (action === 'admin_drivers' && method === 'GET') {

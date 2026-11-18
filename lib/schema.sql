@@ -125,6 +125,17 @@ CREATE TABLE IF NOT EXISTS recycling_transactions (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS notification_logs (
+  id BIGSERIAL PRIMARY KEY,
+  request_id BIGINT REFERENCES collection_requests(id) ON DELETE CASCADE,
+  notification_type VARCHAR(40) NOT NULL,
+  recipient VARCHAR(160),
+  status VARCHAR(20) NOT NULL CHECK (status IN ('sent','failed','skipped')),
+  error TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_notification_request ON notification_logs(request_id, notification_type);
+
 CREATE TABLE IF NOT EXISTS activity_logs (
   id BIGSERIAL PRIMARY KEY,
   actor_type VARCHAR(30) NOT NULL,

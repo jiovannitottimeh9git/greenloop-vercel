@@ -14,6 +14,9 @@ This is a rewrite of the original PHP/MySQL GreenLoop app so it can run on **Ver
 3. Add environment variables in Vercel:
    - `DATABASE_URL` = your Postgres connection string
    - `JWT_SECRET` = a long random string
+   - `GMAIL_USER` = Gmail account used to send completion emails
+   - `GMAIL_APP_PASSWORD` = Gmail app password (not the normal account password)
+   - `EMAIL_FROM` = sender address; use the same Gmail account or a verified Gmail send-as alias
 4. Deploy. The schema in `lib/schema.sql` is created automatically on first request.
 5. Visit `https://<your-project>.vercel.app/setup-admin.php`, create the first administrator, then **delete `setup-admin.php`** (remove the route/file) for security.
 6. Sign in at `/admin-login.php` or `/driver-login.php`.
