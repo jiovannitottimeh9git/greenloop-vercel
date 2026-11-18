@@ -8,9 +8,11 @@ let map=null,myMarker=null,destMarker=null,routeLine=null;
 function statusClass(s){return 'status-pill status-'+String(s).toLowerCase().replaceAll(' ','-');}
 function gpsState(title,detail,mode){
   const dot=document.getElementById('gpsDot'),head=document.getElementById('gpsState'),text=document.getElementById('gpsDetail');
+  const stop=document.getElementById('stopGpsBtn');
   if(head)head.textContent=title;
   if(text)text.textContent=detail;
   if(dot)dot.className='gps-state-dot '+(mode||'idle');
+  if(stop)stop.classList.toggle('hidden',mode!=='live'&&mode!=='pending');
 }
 function ll(point){
   if(!point||point.latitude===null||point.latitude===undefined||point.longitude===null||point.longitude===undefined)return null;
@@ -61,7 +63,11 @@ async function sendFix(fix){
     const res=await fetch('api.php?action=location_update',{method:'POST',headers:headers,body:body});
     const out=await res.json();
     if(out.success)gpsState('Sharing live location','Last sent '+new Date().toLocaleTimeString(),'live');
-    else gpsState('Location not saved',out.message||'Could not save your location.','error');
+    else if(out.inactive){
+      stopSharing();
+      message.textContent=out.message||'This pickup is no longer active. GPS sharing has stopped.';
+      message.className='form-message success';
+    }else gpsState('Location not saved',out.message||'Could not save your location.','error');
   }catch(e){
     gpsState('Connection problem','Location will retry automatically.','error');
   }
@@ -125,4 +131,9 @@ async function completeCollection(id){
     message.textContent=d.message;message.className='form-message error';
   }
 }
-loadAssignments();setInterval(loadAssignments,30000);
+document.getElementById('stopGpsBtn')?.addEventListener('click',()=>{
+  if(activeAssignment)stopSharing();
+  message.textContent='GPS sharing stopped for this pickup. Contact an administrator if the assignment still needs attention.';
+  message.className='form-message success';
+});
+loadAssignments();setInterval(loadAssignments,10000);

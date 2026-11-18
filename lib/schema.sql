@@ -136,6 +136,11 @@ CREATE TABLE IF NOT EXISTS notification_logs (
 );
 CREATE INDEX IF NOT EXISTS idx_notification_request ON notification_logs(request_id, notification_type);
 
+ALTER TABLE collection_requests ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ;
+ALTER TABLE collection_requests ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMPTZ;
+ALTER TABLE collection_requests ADD COLUMN IF NOT EXISTS cancellation_reason TEXT;
+CREATE INDEX IF NOT EXISTS idx_collection_completed ON collection_requests(completed_at DESC);
+
 CREATE TABLE IF NOT EXISTS activity_logs (
   id BIGSERIAL PRIMARY KEY,
   actor_type VARCHAR(30) NOT NULL,

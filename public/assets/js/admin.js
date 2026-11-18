@@ -22,18 +22,68 @@ window.addEventListener('resize',()=>adminMap?.invalidateSize());
 async function loadAdmin(){
  const msg=document.getElementById('adminMessage');
  try{
-  const r=await fetch('api.php?action=admin_data');const d=await r.json();if(!d.success)throw Error(d.message);
+  const r=await fetch('api.php?action=admin_data',{cache:'no-store'});const d=await r.json();if(!d.success)throw Error(d.message);
   Object.entries({statRequests:d.stats.requests,statPending:d.stats.pending,statCompleted:d.stats.completed,statDrivers:d.stats.drivers,statVehicles:d.stats.vehicles,statReports:d.stats.reports}).forEach(([id,v])=>document.getElementById(id).textContent=v);
-  const tbody=document.getElementById('requestRows');tbody.innerHTML=d.requests.length?d.requests.map(x=>`<tr><td><strong>${esc(x.reference_code)}</strong></td><td>${esc(x.customer_name)}<small>${esc(x.phone)}</small></td><td>${esc(x.region)}</td><td>${esc(x.waste_category)}</td><td><span class="status-pill">${esc(x.status)}</span></td><td>${new Date(x.created_at.replace(' ','T')).toLocaleDateString()}</td></tr>`).join(''):'<tr><td colspan="6">No collection requests yet.</td></tr>';
+  const tbody=document.getElementById('requestRows');tbody.innerHTML=d.requests.length?d.requests.map(x=>`<tr><td><strong>${esc(x.reference_code)}</strong></td><td>${esc(x.customer_name)}<small>${esc(x.phone)}</small></td><td>${esc(x.region)}</td><td>${esc(x.waste_category)}</td><td><span class="status-pill">${esc(x.status)}</span></td><td>${new Date(x.created_at.replace(' ','T')).toLocaleDateString()}</td><td>${['Completed','Cancelled'].includes(x.status)?'<span class="muted-cell">—</span>':`<button class="btn btn-outline btn-small" type="button" onclick="cancelRequest(${Number(x.id)},'${esc(x.reference_code)}')">Cancel</button>`}</td></tr>`).join(''):'<tr><td colspan="7">No collection requests yet.</td></tr>';
   if(!adminMap){adminMap=L.map('adminMap').setView([5.6037,-0.187],11);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap'}).addTo(adminMap);}
   markers.forEach(m=>adminMap.removeLayer(m));markers=[];
   d.vehicles.filter(v=>v.latitude&&v.longitude).forEach(v=>{const m=L.marker([v.latitude,v.longitude]).addTo(adminMap).bindPopup(`<strong>${esc(v.registration_number)}</strong><br>${esc(v.driver_name||'Driver')}<br>${esc(v.vehicle_type)}`);markers.push(m);});
+  loadCompleted();
   msg.textContent='';
  }catch(e){msg.textContent='Could not load dashboard data. '+e.message;msg.className='form-message error';}
 }
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+// Manual refresh buttons: show loading state and confirm when the list was updated.
+function bindRefresh(buttonId, loader, messageId, label){
+  const button=document.getElementById(buttonId);
+  if(!button)return;
+  button.addEventListener('click',async()=>{
+    const text=button.querySelector('span');
+    const original=text?text.textContent:label;
+    const target=messageId?document.getElementById(messageId):null;
+    button.disabled=true;button.classList.add('is-loading');
+    if(text)text.textContent='Refreshing…';
+    if(target){target.textContent='Reloading '+label.toLowerCase()+'…';target.className='form-message';}
+    try{
+      await loader();
+      if(target){target.textContent=label+' updated just now.';target.className='form-message success';}
+    }catch(error){
+      if(target){target.textContent='Could not refresh '+label.toLowerCase()+'. '+error.message;target.className='form-message error';}
+    }finally{
+      button.disabled=false;button.classList.remove('is-loading');
+      if(text)text.textContent=original;
+    }
+  });
+}
+
+async function loadCompleted(){
+ const body=document.getElementById('completedRows');if(!body)return;
+ try{
+  const r=await fetch('api.php?action=admin_completed',{cache:'no-store'});const d=await r.json();if(!d.success)throw Error(d.message);
+  body.innerHTML=d.records.length?d.records.map(x=>{
+   const finished=x.completed_at||x.cancelled_at;
+   const when=finished?new Date(String(finished).replace(' ','T')).toLocaleString():'—';
+   const email=x.status==='Cancelled'?'—':esc(x.email_status||'not logged');
+   return `<tr><td><strong>${esc(x.reference_code)}</strong></td><td>${esc(x.customer_name)}<small>${esc(x.phone)}</small></td><td>${esc(x.registration_number||'—')}</td><td>${esc(x.driver_name||'—')}</td><td>${when}</td><td><span class="status-pill">${email}</span></td><td><span class="status-pill">${esc(x.status)}</span></td></tr>`;
+  }).join(''):'<tr><td colspan="7">No completed or cancelled collections yet.</td></tr>';
+ }catch(e){body.innerHTML=`<tr><td colspan="7">${esc(e.message)}</td></tr>`;}
+}
+async function cancelRequest(id,reference){
+ if(!confirm(`Cancel collection ${reference}? Any active driver assignment will be stopped.`))return;
+ const form=new FormData();form.append('request_id',id);
+ const reason=prompt('Optional reason for cancelling this collection:');if(reason)form.append('reason',reason);
+ const target=document.getElementById('requestListMessage');
+ try{
+  const r=await fetch('api.php?action=admin_cancel_request',{method:'POST',headers:headers,body:form});
+  const d=await r.json();target.textContent=d.message;target.className='form-message '+(d.success?'success':'error');
+  if(d.success){loadAdmin();loadOptions();loadCompleted();}
+ }catch(e){target.textContent='Could not cancel this collection. '+e.message;target.className='form-message error';}
+}
+window.cancelRequest=cancelRequest;
 async function loadOptions(){const r=await fetch('api.php?action=admin_options');const d=await r.json();if(!d.success)return;[['assignRequest',d.requests,x=>`${x.reference_code} — ${x.customer_name}`],['assignDriver',d.drivers,x=>x.full_name],['assignVehicle',d.vehicles,x=>x.registration_number]].forEach(([id,arr,label])=>{const el=document.getElementById(id);el.innerHTML='<option value="">Choose…</option>'+arr.map(x=>`<option value="${x.id}">${esc(label(x))}</option>`).join('');});}
-document.getElementById('refreshAdmin')?.addEventListener('click',loadAdmin);
+bindRefresh('refreshAdmin',loadAdmin,'requestListMessage','Requests');
+bindRefresh('refreshCompleted',loadCompleted,'completedListMessage','History');
 document.getElementById('assignForm')?.addEventListener('submit',async e=>{e.preventDefault();const f=e.currentTarget;const r=await fetch('api.php?action=admin_assign',{method:'POST',headers:headers,body:new FormData(f)});const d=await r.json();const m=document.getElementById('assignMessage');m.textContent=d.message;m.className='form-message '+(d.success?'success':'error');if(d.success){f.reset();loadAdmin();loadOptions();}});
 loadAdmin();loadOptions();setInterval(loadAdmin,15000);
 
@@ -80,7 +130,7 @@ async function toggleDriver(id){
  }catch(error){const target=document.getElementById('driverListMessage');target.textContent=error.message;target.className='form-message error';}
 }
 window.toggleDriver=toggleDriver;
-document.getElementById('refreshDrivers')?.addEventListener('click',loadDrivers);
+bindRefresh('refreshDrivers',loadDrivers,'driverListMessage','Drivers');
 loadDrivers();
 
 
@@ -132,5 +182,5 @@ vehicleForm?.addEventListener('submit',async event=>{
  }
 });
 
-document.getElementById('refreshVehicles')?.addEventListener('click',loadVehicles);
+bindRefresh('refreshVehicles',loadVehicles,'vehicleListMessage','Vehicles');
 loadVehicles();

@@ -7,6 +7,7 @@ const db = require('../lib/db');
 const auth = require('../lib/auth');
 const email = require('../lib/email');
 const locationUtils = require('../lib/location');
+const validate = require('../lib/validation');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -196,21 +197,21 @@ app.all('/api.php', parseMultipart, async (req, res) => {
     }
 
     if (action === 'create_request' && method === 'POST') {
-      const name = str(req.body.name, 120);
-      const phone = str(req.body.phone, 30);
-      const customerEmail = str(req.body.email, 160).toLowerCase();
-      const region = str(req.body.region, 80);
-      let address = str(req.body.address, 255);
-      const category = str(req.body.category, 60);
-      const quantity = str(req.body.quantity, 80);
-      const date = String(req.body.preferred_date || '');
-      const time = str(req.body.preferred_time, 40);
+      const name = validate.cleanText(req.body.name, 120);
+      const phone = validate.normalisePhone(req.body.phone);
+      const customerEmail = validate.cleanText(req.body.email, 160).toLowerCase();
+      const region = validate.cleanText(req.body.region, 80);
+      let address = validate.cleanText(req.body.address, 255);
+      const category = validate.cleanText(req.body.category, 60);
+      const quantity = validate.cleanText(req.body.quantity, 80);
+      const date = validate.cleanText(req.body.preferred_date, 20);
+      const time = validate.cleanText(req.body.preferred_time, 40);
       const lat = num(req.body.latitude);
       const lng = num(req.body.longitude);
-      const notes = str(req.body.notes, 1000);
+      const notes = validate.cleanText(req.body.notes, 1000);
       const allowed = ['Plastic', 'Paper', 'Organic waste', 'Metal', 'Glass', 'Electronic waste', 'General waste'];
-      if (!name || !phone || !region || !allowed.includes(category)) {
-        return send(res, { success: false, message: 'Please provide your name, phone, region and waste category.' }, 422);
+      if (name.length < 2 || !phone || !region || !allowed.includes(category)) {
+        return send(res, { success: false, message: 'Provide your full name, a valid Ghana phone number, region and waste category.' }, 422);
       }
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail)) {
         return send(res, { success: false, message: 'Please provide a valid email address so we can notify you when your pickup is completed.' }, 422);
@@ -219,8 +220,17 @@ app.all('/api.php', parseMultipart, async (req, res) => {
         return send(res, { success: false, message: 'Choose a pickup location on the map or add your current GPS location.' }, 422);
       }
       if (!address) address = `Pinned map location (${lat.toFixed(6)}, ${lng.toFixed(6)})`;
-      if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-        return send(res, { success: false, message: 'Please provide a valid preferred date.' }, 422);
+      const dateError = validate.validateDate(date);
+      if (dateError) {
+        const messages = {
+          invalid: 'Please provide a valid preferred date.',
+          past: 'Choose a preferred date from today onwards.',
+          too_far: 'Choose a preferred date within the next 90 days.'
+        };
+        return send(res, { success: false, message: messages[dateError] }, 422);
+      }
+      if (validate.validateTimeSlot(time)) {
+        return send(res, { success: false, message: 'Choose a valid preferred time slot.' }, 422);
       }
       const reference = ref('WW');
       await db.query(
@@ -242,8 +252,8 @@ app.all('/api.php', parseMultipart, async (req, res) => {
         `SELECT id, reference_code, customer_name, region, address, waste_category, preferred_date,
          preferred_time, status, assigned_vehicle_id, customer_latitude, customer_longitude
          FROM collection_requests
-         WHERE reference_code=$1 AND phone=$2 LIMIT 1`,
-        [reference, phone]
+         WHERE reference_code=$1 AND (phone=$2 OR regexp_replace(phone,'[^0-9]','','g')=$3) LIMIT 1`,
+        [reference, phone, validate.phoneDigits(validate.normalisePhone(phone) || phone)]
       );
       if (!request) return send(res, { success: false, message: 'No matching collection was found. Check your details.' }, 404);
 
@@ -442,12 +452,16 @@ app.all('/api.php', parseMultipart, async (req, res) => {
       if (!user) return;
       const assignment = Number(req.body.assignment_id) || 0;
       const a = await db.one(
-        `SELECT va.id, va.vehicle_id, cr.id AS request_id FROM vehicle_assignments va
+        `SELECT va.id, va.vehicle_id, cr.id AS request_id, cr.status AS request_status
+         FROM vehicle_assignments va
          JOIN collection_requests cr ON cr.id=va.collection_request_id
          WHERE va.id=$1 AND va.driver_id=$2 AND va.active=TRUE`,
         [assignment, user.id]
       );
       if (!a) return send(res, { success: false, message: 'Assignment not found.' }, 404);
+      if (validate.isTerminalStatus(a.request_status)) {
+        return send(res, { success: false, message: 'This collection is already completed or cancelled.', inactive: true }, 409);
+      }
       await db.query("UPDATE collection_requests SET status='Driver En Route', updated_at=NOW() WHERE id=$1", [a.request_id]);
       await db.query('UPDATE vehicle_assignments SET started_at=NOW() WHERE id=$1', [assignment]);
       return send(res, { success: true, vehicle_id: Number(a.vehicle_id) });
@@ -460,10 +474,16 @@ app.all('/api.php', parseMultipart, async (req, res) => {
       const fix = locationUtils.normaliseFix(req.body);
       if (!fix) return send(res, { success: false, message: 'Invalid GPS coordinates.' }, 422);
       const a = await db.one(
-        'SELECT vehicle_id FROM vehicle_assignments WHERE id=$1 AND driver_id=$2 AND active=TRUE',
+        `SELECT va.vehicle_id, cr.status AS request_status
+         FROM vehicle_assignments va
+         JOIN collection_requests cr ON cr.id=va.collection_request_id
+         WHERE va.id=$1 AND va.driver_id=$2 AND va.active=TRUE`,
         [assignment, user.id]
       );
-      if (!a) return send(res, { success: false, message: 'No active assignment found.' }, 403);
+      if (!a) return send(res, { success: false, message: 'No active assignment found.', inactive: true }, 403);
+      if (validate.isTerminalStatus(a.request_status)) {
+        return send(res, { success: false, message: 'This pickup is no longer active. GPS sharing has stopped.', inactive: true }, 409);
+      }
 
       // Drop near-duplicate fixes so a stationary phone cannot flood the
       // trail table. Fresh fixes are still stored every few seconds as a
@@ -512,7 +532,7 @@ app.all('/api.php', parseMultipart, async (req, res) => {
          WHERE cr.id=$1`,
         [a.request_id]
       );
-      await db.query("UPDATE collection_requests SET status='Completed', updated_at=NOW() WHERE id=$1", [a.request_id]);
+      await db.query("UPDATE collection_requests SET status='Completed', completed_at=NOW(), updated_at=NOW() WHERE id=$1", [a.request_id]);
       await db.query('UPDATE vehicle_assignments SET active=FALSE, completed_at=NOW() WHERE id=$1', [assignment]);
       await db.query("UPDATE vehicles SET status='Available' WHERE id=$1", [a.vehicle_id]);
 
@@ -593,10 +613,10 @@ app.all('/api.php', parseMultipart, async (req, res) => {
 
     if (action === 'admin_create_driver' && method === 'POST') {
       if (!auth.requireRole(req, res, 'admin')) return;
-      const name = str(req.body.full_name, 120);
-      const email = str(req.body.email, 160).toLowerCase();
-      const phone = str(req.body.phone, 30);
-      const licence = str(req.body.licence_number, 80);
+      const name = validate.cleanText(req.body.full_name, 120);
+      const email = validate.cleanText(req.body.email, 160).toLowerCase();
+      const phone = validate.normalisePhone(req.body.phone);
+      const licence = validate.cleanText(req.body.licence_number, 80);
       const password = String(req.body.password || '');
       if (!name || !phone || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || password.length < 8) {
         return send(res, { success: false, message: 'Enter a name, valid email, phone number and password of at least 8 characters.' }, 422);
@@ -698,36 +718,132 @@ app.all('/api.php', parseMultipart, async (req, res) => {
       const request = Number(req.body.request_id) || 0;
       const driver = Number(req.body.driver_id) || 0;
       const vehicle = Number(req.body.vehicle_id) || 0;
-      if (!await db.one('SELECT id FROM collection_requests WHERE id=$1', [request])) {
-        return send(res, { success: false, message: 'Collection request not found.' }, 404);
+      const job = await db.one('SELECT id, status, assigned_vehicle_id FROM collection_requests WHERE id=$1', [request]);
+      if (!job) return send(res, { success: false, message: 'Collection request not found.' }, 404);
+      if (validate.isTerminalStatus(job.status)) {
+        return send(res, { success: false, message: 'Completed or cancelled collections cannot be assigned.' }, 409);
       }
       if (!await db.one("SELECT id FROM drivers WHERE id=$1 AND status='Active'", [driver])) {
         return send(res, { success: false, message: 'Choose an active driver.' }, 422);
       }
-      if (!await db.one("SELECT id FROM vehicles WHERE id=$1 AND status IN ('Available','Assigned')", [vehicle])) {
+      if (!await db.one("SELECT id FROM vehicles WHERE id=$1 AND status IN ('Available','Assigned','Active')", [vehicle])) {
         return send(res, { success: false, message: 'Vehicle is not available.' }, 422);
       }
       const client = await db.pool.connect();
       try {
         await client.query('BEGIN');
+        const previous = await client.query(
+          'SELECT id, vehicle_id FROM vehicle_assignments WHERE collection_request_id=$1 AND active=TRUE',
+          [request]
+        );
+        const reassigned = previous.rows.length > 0;
+        await client.query(
+          'UPDATE vehicle_assignments SET active=FALSE, completed_at=COALESCE(completed_at,NOW()) WHERE collection_request_id=$1 AND active=TRUE',
+          [request]
+        );
+        const freed = new Set();
+        for (const row of previous.rows) {
+          if (Number(row.vehicle_id) !== vehicle) freed.add(Number(row.vehicle_id));
+        }
+        if (job.assigned_vehicle_id && Number(job.assigned_vehicle_id) !== vehicle) {
+          freed.add(Number(job.assigned_vehicle_id));
+        }
+        for (const oldVehicle of freed) {
+          const stillUsed = await client.query('SELECT id FROM vehicle_assignments WHERE vehicle_id=$1 AND active=TRUE LIMIT 1', [oldVehicle]);
+          if (!stillUsed.rows[0]) {
+            await client.query("UPDATE vehicles SET status='Available', assigned_driver_id=NULL WHERE id=$1", [oldVehicle]);
+          }
+        }
         await client.query('INSERT INTO vehicle_assignments (collection_request_id, vehicle_id, driver_id) VALUES ($1,$2,$3)', [request, vehicle, driver]);
         await client.query("UPDATE collection_requests SET assigned_vehicle_id=$1, status='Assigned', updated_at=NOW() WHERE id=$2", [vehicle, request]);
         await client.query("UPDATE vehicles SET assigned_driver_id=$1, status='Assigned' WHERE id=$2", [driver, vehicle]);
         await client.query('COMMIT');
+        return send(res, {
+          success: true,
+          message: reassigned ? 'Assignment updated. The previous driver can no longer track this pickup.' : 'Driver and vehicle assigned successfully.',
+          reassigned
+        });
       } catch (err) {
         await client.query('ROLLBACK');
         throw err;
       } finally {
         client.release();
       }
-      return send(res, { success: true, message: 'Driver and vehicle assigned successfully.' });
+    }
+
+    if (action === 'admin_cancel_request' && method === 'POST') {
+      if (!auth.requireRole(req, res, 'admin')) return;
+      const request = Number(req.body.request_id) || 0;
+      const reason = validate.cleanText(req.body.reason, 300);
+      const job = await db.one('SELECT id, status, assigned_vehicle_id FROM collection_requests WHERE id=$1', [request]);
+      if (!job) return send(res, { success: false, message: 'Collection request not found.' }, 404);
+      if (validate.isTerminalStatus(job.status)) {
+        return send(res, { success: false, message: 'This collection is already completed or cancelled.' }, 409);
+      }
+      const client = await db.pool.connect();
+      try {
+        await client.query('BEGIN');
+        await client.query(
+          "UPDATE collection_requests SET status='Cancelled', cancelled_at=NOW(), cancellation_reason=$2, updated_at=NOW() WHERE id=$1",
+          [request, reason || null]
+        );
+        const active = await client.query(
+          'SELECT id, vehicle_id FROM vehicle_assignments WHERE collection_request_id=$1 AND active=TRUE',
+          [request]
+        );
+        await client.query(
+          'UPDATE vehicle_assignments SET active=FALSE, completed_at=COALESCE(completed_at,NOW()) WHERE collection_request_id=$1 AND active=TRUE',
+          [request]
+        );
+        const freed = new Set(active.rows.map((row) => Number(row.vehicle_id)));
+        if (job.assigned_vehicle_id) freed.add(Number(job.assigned_vehicle_id));
+        for (const oldVehicle of freed) {
+          const stillUsed = await client.query('SELECT id FROM vehicle_assignments WHERE vehicle_id=$1 AND active=TRUE LIMIT 1', [oldVehicle]);
+          if (!stillUsed.rows[0]) {
+            await client.query("UPDATE vehicles SET status='Available', assigned_driver_id=NULL WHERE id=$1", [oldVehicle]);
+          }
+        }
+        await client.query('COMMIT');
+        return send(res, { success: true, message: 'Collection cancelled. GPS sharing for this pickup has stopped.' });
+      } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+      } finally {
+        client.release();
+      }
+    }
+
+    if (action === 'admin_completed' && method === 'GET') {
+      if (!auth.requireRole(req, res, 'admin')) return;
+      const records = await db.many(
+        `SELECT cr.id, cr.reference_code, cr.customer_name, cr.phone, cr.region, cr.address,
+                cr.waste_category, cr.completed_at, cr.cancelled_at, cr.cancellation_reason, cr.status,
+                v.registration_number, d.full_name AS driver_name,
+                nl.status AS email_status
+         FROM collection_requests cr
+         LEFT JOIN vehicle_assignments va ON va.id=(
+           SELECT va2.id FROM vehicle_assignments va2
+           WHERE va2.collection_request_id=cr.id ORDER BY va2.created_at DESC LIMIT 1
+         )
+         LEFT JOIN vehicles v ON v.id=cr.assigned_vehicle_id
+         LEFT JOIN drivers d ON d.id=va.driver_id
+         LEFT JOIN notification_logs nl ON nl.id=(
+           SELECT nl2.id FROM notification_logs nl2
+           WHERE nl2.request_id=cr.id AND nl2.notification_type='pickup_completed'
+           ORDER BY nl2.created_at DESC LIMIT 1
+         )
+         WHERE cr.status IN ('Completed','Cancelled')
+         ORDER BY COALESCE(cr.completed_at, cr.cancelled_at, cr.updated_at) DESC
+         LIMIT 250`
+      );
+      return send(res, { success: true, records });
     }
 
     if (action === 'admin_options' && method === 'GET') {
       if (!auth.requireRole(req, res, 'admin')) return;
       const drivers = await db.many("SELECT id, full_name FROM drivers WHERE status='Active' ORDER BY full_name");
-      const vehicles = await db.many("SELECT id, registration_number FROM vehicles WHERE status IN ('Available','Assigned') ORDER BY registration_number");
-      const requests = await db.many("SELECT id, reference_code, customer_name FROM collection_requests WHERE status IN ('Pending','Approved') ORDER BY created_at DESC");
+      const vehicles = await db.many("SELECT id, registration_number FROM vehicles WHERE status IN ('Available','Assigned','Active') ORDER BY registration_number");
+      const requests = await db.many("SELECT id, reference_code, customer_name, status FROM collection_requests WHERE status NOT IN ('Completed','Cancelled') ORDER BY created_at DESC");
       return send(res, { success: true, drivers, vehicles, requests });
     }
 
