@@ -33,7 +33,10 @@ function csrfToken(req, res) {
   token = token ? decodeURIComponent(token.slice('gl_csrf='.length)) : null;
   if (!token) {
     token = crypto.randomBytes(32).toString('hex');
-    const existing = (req.headers.cookie || '').split(';').filter((c) => !c.trim().startsWith('gl_csrf='));
+    const existing = (req.headers.cookie || '')
+      .split(';')
+      .map((c) => c.trim())
+      .filter((c) => c && !c.startsWith('gl_csrf='));
     const secure = req.get('x-forwarded-proto') === 'https' || process.env.VERCEL || process.env.NODE_ENV === 'production';
     const cookies = existing.concat(`gl_csrf=${encodeURIComponent(token)}; Path=/; SameSite=Lax${secure ? '; Secure' : ''}`);
     res.setHeader('Set-Cookie', cookies);
