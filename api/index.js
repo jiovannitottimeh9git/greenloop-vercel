@@ -272,7 +272,8 @@ app.all('/api.php', parseMultipart, async (req, res) => {
       );
 
       if (assignment) {
-        live.active = true;
+        // Only call it "live" once the driver has actually started the job.
+        live.active = Boolean(assignment.started_at);
         live.driver_name = assignment.driver_name;
         if (assignment.registration_number) {
           vehicle = {
