@@ -1,1 +1,213 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Recycling Hub | GreenLoop</title><meta name="csrf-token" content="{{CSRF}}"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"><link rel="stylesheet" href="assets/css/style.css"></head><body class="inner-page"><header class="site-header"><a class="brand" href="index.php"><span class="brand-mark"><i class="fa-solid fa-leaf"></i></span><span>Green<span>Loop</span><small>SMARTER WASTE. CLEANER GHANA.</small></span></a><button class="menu-toggle" aria-label="Open menu"><i class="fa-solid fa-bars"></i></button><nav class="main-nav"><a href="index.php">Home</a><a href="services.php">Our Services</a><a href="how-it-works.php">How It Works</a><a class="active" href="marketplace.php">Recycling Hub</a><a href="about.php">About</a></nav><a class="btn btn-primary nav-cta" href="request.php">Request a Pickup <i class="fa-solid fa-arrow-right"></i></a></header><main class="inner-wrap"><div class="eyebrow">RECYCLING MARKETPLACE</div><h1 class="inner-title">Materials with <em>another life.</em></h1><p class="inner-lead">List recyclable materials and help connect useful resources with recovery partners. Listings are reviewed by the GreenLoop team.</p><div class="recycling-banner"><img src="assets/images/recycling-sorting-banner.jpg" alt="Hands sorting recyclable materials into labelled boxes"><div class="recycling-banner-copy"><span class="banner-kicker">FROM WASTE TO RESOURCE</span><h2>Every sorted item has another life.</h2><p>Sort, list and connect your recyclables with the people who can reuse them.</p></div></div><div class="market-grid"><div class="market-card"><img src="assets/images/recycling-plastic.jpg" alt="Sorted plastic bottles ready for recycling"><h3>Plastic</h3><p>Bottles, containers and sorted plastic materials.</p></div><div class="market-card"><img src="assets/images/recycling-cardboard.jpg" alt="Stacked cardboard ready for recycling"><h3>Paper & cardboard</h3><p>Clean paper, cartons and cardboard.</p></div><div class="market-card"><img src="assets/images/recycling-glass.jpg" alt="Glass bottles collected for recycling"><h3>Metal & glass</h3><p>Sorted cans, scrap metal and glass.</p></div></div><form id="listingForm" class="form-card standalone"><div class="form-heading"><div><span class="form-step">CONTRIBUTE TO THE HUB</span><h3>List recyclable materials</h3></div></div><div class="form-grid"><label>Your name *<input name="name" required></label><label>Phone number *<input name="phone" required></label><label>Material *<select name="material" required><option value="">Select material</option><option>Plastic</option><option>Paper</option><option>Cardboard</option><option>Metal</option><option>Glass</option><option>Electronic waste</option><option>Other</option></select></label><label>Quantity *<input type="number" min="0.1" step="0.1" name="quantity" required placeholder="e.g. 12"></label><label>Unit<select name="unit"><option>kg</option><option>bags</option><option>pieces</option><option>tonnes</option></select></label><label>Location *<input name="location" required placeholder="Community / district"></label><label class="full">Description<textarea name="description" rows="3"></textarea></label></div><button class="btn btn-primary submit-btn">Submit material listing <i class="fa-solid fa-arrow-right"></i></button><div id="listingMessage" class="form-message"></div></form></main><script src="assets/js/app.js"></script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Recycling Hub | GreenLoop</title>
+  <meta name="description" content="Learn what to recycle, how to prepare it, and find recycling centres across Ghana with GreenLoop's practical Recycling Hub.">
+  <meta name="csrf-token" content="{{CSRF}}">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="assets/css/style.css?v=5">
+</head>
+<body class="inner-page">
+  <header class="site-header">
+    <a class="brand" href="index.php"><span class="brand-mark"><i class="fa-solid fa-leaf"></i></span><span>Green<span>Loop</span><small>SMARTER WASTE. CLEANER GHANA.</small></span></a>
+    <button class="menu-toggle" aria-label="Open menu"><i class="fa-solid fa-bars"></i></button>
+    <nav class="main-nav">
+      <a href="index.php">Home</a>
+      <a href="services.php">Our Services</a>
+      <a href="how-it-works.php">How It Works</a>
+      <a class="active" href="marketplace.php">Recycling Hub</a>
+      <a href="about.php">About</a>
+    </nav>
+    <a class="btn btn-primary nav-cta" href="request.php">Request a Pickup <i class="fa-solid fa-arrow-right"></i></a>
+  </header>
+
+  <main class="inner-wrap hub-page">
+    <div class="eyebrow">RECYCLING HUB · GREENLOOP</div>
+    <h1 class="inner-title">Recycle smarter, <em>closer to home.</em></h1>
+    <p class="inner-lead">The Recycling Hub is here to promote environmental awareness and responsible waste management. Learn what can be recycled, prepare it properly, and find recycling options across Ghana so less waste ends up in landfill.</p>
+    <div class="hub-cta-row">
+      <a class="btn btn-primary" href="#materials">Explore materials <i class="fa-solid fa-arrow-down"></i></a>
+      <a class="btn btn-outline" href="#centres">Find a centre near me <i class="fa-solid fa-location-dot"></i></a>
+    </div>
+
+    <div class="recycling-banner">
+      <img src="assets/images/recycling-sorting-banner.jpg" alt="Hands sorting recyclable materials into labelled boxes">
+      <div class="recycling-banner-copy">
+        <span class="banner-kicker">FROM WASTE TO RESOURCE</span>
+        <h2>Every sorted item has another life.</h2>
+        <p>When we separate materials at source, recyclers can recover them instead of sending them to landfill or burning them.</p>
+      </div>
+    </div>
+
+    <div class="hub-value-grid">
+      <div class="hub-value"><i class="fa-solid fa-leaf"></i><div><strong>Protect communities</strong><span>Less dumped waste means cleaner streets, drains and waterways.</span></div></div>
+      <div class="hub-value"><i class="fa-solid fa-recycle"></i><div><strong>Save resources</strong><span>Recovered materials replace raw materials and reduce pressure on nature.</span></div></div>
+      <div class="hub-value"><i class="fa-solid fa-truck-arrow-right"></i><div><strong>Keep landfill space</strong><span>Sorting at home makes collection and recycling far more effective.</span></div></div>
+    </div>
+
+    <section class="hub-section" id="materials">
+      <div class="hub-section-head">
+        <div>
+          <span class="form-step">RECYCLING CATEGORIES</span>
+          <h2>What can you recycle?</h2>
+          <p>Use this guide to sort common household and small-business waste. Always follow the instructions of the collection centre or recycler near you.</p>
+        </div>
+      </div>
+
+      <div class="hub-category-grid">
+        <article class="hub-category">
+          <div class="hub-category-image"><img src="assets/images/recycling-plastic.jpg" alt="Sorted plastic bottles ready for recycling"></div>
+          <div class="hub-category-body">
+            <div class="hub-category-title"><i class="fa-solid fa-bottle-droplet"></i><h3>Plastics</h3></div>
+            <p><strong>Accept:</strong> PET water bottles, clear or blue bottles, pure water sachets, hard plastic containers, crates and beverage cans.</p>
+            <p><strong>Prepare:</strong> Empty, rinse and dry. Remove labels and caps where requested. Keep plastic types separate if the recycler asks.</p>
+            <p class="hub-category-outcome"><i class="fa-solid fa-arrow-right"></i> Becomes pellets, sachets, roofing sheets, bags, benches and new containers.</p>
+          </div>
+        </article>
+
+        <article class="hub-category">
+          <div class="hub-category-image"><img src="assets/images/recycling-cardboard.jpg" alt="Stacked cardboard ready for recycling"></div>
+          <div class="hub-category-body">
+            <div class="hub-category-title"><i class="fa-solid fa-boxes-stacked"></i><h3>Paper &amp; cardboard</h3></div>
+            <p><strong>Accept:</strong> Clean newspapers, office paper, cartons, flattened cardboard and paper bags.</p>
+            <p><strong>Prepare:</strong> Keep dry, remove food residue, flatten boxes and separate glossy coated paper from plain paper where possible.</p>
+            <p class="hub-category-outcome"><i class="fa-solid fa-arrow-right"></i> Becomes recycled paper, cartons, packaging and compost-friendly fibre.</p>
+          </div>
+        </article>
+
+        <article class="hub-category">
+          <div class="hub-category-image"><img src="assets/images/recycling-glass.jpg" alt="Glass bottles collected for recycling"></div>
+          <div class="hub-category-body">
+            <div class="hub-category-title"><i class="fa-solid fa-wine-bottle"></i><h3>Glass</h3></div>
+            <p><strong>Accept:</strong> Glass bottles and jars, especially returnable drink bottles.</p>
+            <p><strong>Prepare:</strong> Rinse, remove metal lids and keep broken glass separate and safely wrapped. Do not mix glass with ceramics.</p>
+            <p class="hub-category-outcome"><i class="fa-solid fa-arrow-right"></i> Becomes new bottles, jars or construction aggregate.</p>
+          </div>
+        </article>
+
+        <article class="hub-category">
+          <div class="hub-category-image hub-category-icon"><i class="fa-solid fa-cans"></i></div>
+          <div class="hub-category-body">
+            <div class="hub-category-title"><i class="fa-solid fa-cogs"></i><h3>Metals</h3></div>
+            <p><strong>Accept:</strong> Aluminium drink cans, steel food tins, scrap metal and clean foil.</p>
+            <p><strong>Prepare:</strong> Empty and rinse. Flatten cans where possible and keep ferrous and non-ferrous metals separate if the recycler requires it.</p>
+            <p class="hub-category-outcome"><i class="fa-solid fa-arrow-right"></i> Becomes new cans, metal products and recycled scrap.</p>
+          </div>
+        </article>
+
+        <article class="hub-category">
+          <div class="hub-category-image hub-category-icon organic"><i class="fa-solid fa-seedling"></i></div>
+          <div class="hub-category-body">
+            <div class="hub-category-title"><i class="fa-solid fa-leaf"></i><h3>Organic &amp; garden waste</h3></div>
+            <p><strong>Accept:</strong> Fruit and vegetable peels, food scraps, leaves, grass and small garden trimmings.</p>
+            <p><strong>Prepare:</strong> Keep food waste separate from plastics and glass. Avoid meat and oily waste if your composting service does not accept them.</p>
+            <p class="hub-category-outcome"><i class="fa-solid fa-arrow-right"></i> Becomes compost and fertiliser for farms and gardens.</p>
+          </div>
+        </article>
+
+        <article class="hub-category">
+          <div class="hub-category-image hub-category-icon ewaste"><i class="fa-solid fa-microchip"></i></div>
+          <div class="hub-category-body">
+            <div class="hub-category-title"><i class="fa-solid fa-bolt"></i><h3>E-waste &amp; batteries</h3></div>
+            <p><strong>Accept:</strong> Phones, chargers, computers, small appliances, cables and batteries through approved e-waste collectors.</p>
+            <p><strong>Prepare:</strong> Remove batteries where possible, tape battery terminals, wipe personal data from devices and never burn wires or electronics.</p>
+            <p class="hub-category-outcome"><i class="fa-solid fa-arrow-right"></i> Recovered metals and parts return to manufacturing; harmful materials are handled safely.</p>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="hub-section" id="tips">
+      <div class="hub-section-head">
+        <div>
+          <span class="form-step">RECYCLING TIPS</span>
+          <h2>Recycle right in five steps.</h2>
+          <p>Good habits at home make every collection and drop-off more valuable.</p>
+        </div>
+      </div>
+
+      <div class="hub-tip-grid">
+        <article class="hub-tip"><span>01</span><h3>Sort at source</h3><p>Keep plastics, paper, glass, metal and organic waste in separate bags or containers from the moment you discard them.</p></article>
+        <article class="hub-tip"><span>02</span><h3>Empty, rinse and dry</h3><p>Food and liquid contamination can make otherwise recyclable materials unusable. A quick rinse makes a big difference.</p></article>
+        <article class="hub-tip"><span>03</span><h3>Keep paper dry</h3><p>Wet cardboard and paper are difficult to recover. Store them under cover until collection or drop-off.</p></article>
+        <article class="hub-tip"><span>04</span><h3>Flatten and compact</h3><p>Flatten boxes and crush bottles where allowed. This saves space in bags, bins and collection vehicles.</p></article>
+        <article class="hub-tip"><span>05</span><h3>Check before you drop</h3><p>Call the centre or ask the collector what they accept. Never place batteries, electronics or hazardous waste in ordinary recycling bags.</p></article>
+      </div>
+
+      <div class="hub-warning">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+        <div><strong>Do not burn or dump waste.</strong><p>Burning plastics and e-waste releases harmful fumes. If there is no drop-off point near you, request a GreenLoop pickup or ask your local assembly about the nearest collection point.</p></div>
+      </div>
+    </section>
+
+    <section class="hub-section" id="centres">
+      <div class="hub-section-head">
+        <div>
+          <span class="form-step">RECYCLING LOCATIONS</span>
+          <h2>Find a recycling centre in Ghana.</h2>
+          <p>Filter by city, region or material. Map pins show approximate areas — confirm the exact address, opening hours and accepted materials before you travel.</p>
+        </div>
+      </div>
+
+      <div class="hub-filter-bar">
+        <label><i class="fa-solid fa-magnifying-glass"></i><input id="centreSearch" type="search" placeholder="Search centre, city or area" autocomplete="off"></label>
+        <label>Region<select id="centreRegion"><option value="">All regions</option><option>Greater Accra</option><option>Ashanti</option><option>Western</option><option>Northern</option></select></label>
+        <label>Material<select id="centreMaterial"><option value="">All materials</option><option>Plastics</option><option>Paper &amp; cardboard</option><option>Glass</option><option>Metals</option><option>Organic/garden</option><option>E-waste &amp; batteries</option><option>Tyres/rubber</option></select></label>
+        <button class="btn btn-outline btn-small" id="resetCentreFilters" type="button"><i class="fa-solid fa-rotate-left"></i> Reset</button>
+      </div>
+
+      <p class="hub-result-count" id="centreCount" aria-live="polite">Loading recycling centres…</p>
+
+      <div class="hub-centre-layout">
+        <div class="hub-centre-list" id="centreList">
+          <div class="centre-loading"><i class="fa-solid fa-circle-notch fa-spin"></i> Loading recycling options…</div>
+        </div>
+        <aside class="hub-map-wrap">
+          <div id="hubMap" class="hub-map" aria-label="Approximate map of recycling centres in Ghana"></div>
+          <p class="map-note"><i class="fa-solid fa-circle-info"></i> Pins are approximate area markers, not door-to-door navigation. Use the Directions link on each card after confirming with the centre.</p>
+        </aside>
+      </div>
+
+      <p class="hub-source-note">Directory compiled from organisation websites and public listings, including ACARP, Coliba, SESA, KCARP, Explore Ghana Guide, Cybo and the Tamale Metropolitan Assembly. Details can change; call ahead.</p>
+    </section>
+
+    <section class="hub-help">
+      <div>
+        <span class="form-step">NO CENTRE NEARBY?</span>
+        <h2>Let GreenLoop collect it.</h2>
+        <p>If you have a sorted load but cannot reach a drop-off point, request a pickup. You can also list recyclable materials you have available.</p>
+      </div>
+      <div class="hub-help-actions">
+        <a class="btn btn-primary" href="request.php">Request a pickup <i class="fa-solid fa-arrow-right"></i></a>
+        <a class="btn btn-outline" href="#list-material">List materials <i class="fa-solid fa-box-open"></i></a>
+      </div>
+    </section>
+
+    <span id="list-material" class="hub-anchor"></span>
+    <form id="listingForm" class="form-card standalone">
+      <div class="form-heading">
+        <div><span class="form-step">CONTRIBUTE TO THE HUB</span><h3>List recyclable materials</h3></div>
+        <p>Have a quantity of sorted recyclables? Tell us what you have and where it is. Listings are reviewed by the GreenLoop team.</p>
+      </div>
+      <div class="form-grid">
+        <label>Your name *<input name="name" required maxlength="120" autocomplete="name"></label>
+        <label>Phone number *<input name="phone" type="tel" required maxlength="30" autocomplete="tel" pattern="[0-9+()\s-]{9,18}" title="Enter a valid phone number"></label>
+        <label>Material *<select name="material" required><option value="">Select material</option><option>Plastic</option><option>Paper</option><option>Cardboard</option><option>Glass</option><option>Metal</option><option>Organic waste</option><option>Electronic waste</option><option>Tyres / rubber</option><option>Other</option></select></label>
+        <label>Quantity *<input type="number" min="0.1" step="0.1" name="quantity" required placeholder="e.g. 12"></label>
+        <label>Unit<select name="unit"><option>kg</option><option>bags</option><option>pieces</option><option>tonnes</option></select></label>
+        <label>Location *<input name="location" required placeholder="Community / district" maxlength="255"></label>
+        <label class="full">Description<textarea name="description" rows="3" maxlength="1500" placeholder="Tell us how the material has been sorted and stored."></textarea></label>
+      </div>
+      <button class="btn btn-primary submit-btn">Submit material listing <i class="fa-solid fa-arrow-right"></i></button>
+      <div id="listingMessage" class="form-message" aria-live="polite"></div>
+    </form>
+  </main>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="assets/js/app.js?v=5"></script>
+  <script src="assets/js/hub.js?v=1"></script>
+</body>
+</html>
