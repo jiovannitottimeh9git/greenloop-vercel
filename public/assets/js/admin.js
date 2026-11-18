@@ -1,5 +1,21 @@
 const csrf=document.querySelector('meta[name="csrf-token"]')?.content||'';
 const headers={'X-CSRF-Token':csrf};let adminMap=null,markers=[];
+
+// Mobile admin drawer - scoped to the admin dashboard only.
+const adminSidebar=document.querySelector('.dashboard-page .sidebar');
+const sidebarToggle=document.querySelector('[data-sidebar-toggle]');
+function setAdminSidebar(open){
+  adminSidebar?.classList.toggle('open',open);
+  document.querySelector('.dashboard-page .sidebar-overlay')?.classList.toggle('open',open);
+  document.body.classList.toggle('sidebar-open',open);
+  sidebarToggle?.setAttribute('aria-expanded',String(open));
+}
+sidebarToggle?.addEventListener('click',()=>setAdminSidebar(!adminSidebar?.classList.contains('open')));
+document.querySelectorAll('[data-sidebar-close]').forEach(el=>el.addEventListener('click',()=>setAdminSidebar(false)));
+document.querySelectorAll('.sidebar .side-link').forEach(link=>{
+  if((link.getAttribute('href')||'').startsWith('#')) link.addEventListener('click',()=>setAdminSidebar(false));
+});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')setAdminSidebar(false);});
 async function loadAdmin(){
  const msg=document.getElementById('adminMessage');
  try{
